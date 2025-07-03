@@ -1,0 +1,41 @@
+Running historical download from 2025-07-02 to 2025-07-02...
+Historical download 2025-07-02 to 2025-07-02 complete.
+Running Finnhub pipeline...
+Finnhub + EPS detection failed: [Errno 2] No such file or directory: 'CRON JOB SCRIPT/tickers.txt'
+Running Finnhub pipeline...
+Finnhub + EPS detection failed: [Errno 2] No such file or directory: 'CRON JOB SCRIPT/tickers.txt'
+Running Finnhub pipeline...
+Finnhub + EPS detection failed: [Errno 2] No such file or directory: 'CRON JOB SCRIPT/tickers.txt'
+Running Finnhub pipeline...
+[1/5430] Fetching from Finnhub: NVDA
+[2/5430] Fetching from Finnhub: MSFT
+[3/5430] Fetching from Finnhub: AAPL
+[4/5430] Fetching from Finnhub: AMZN
+[5/5430] Fetching from Finnhub: GOOGL
+Running Finnhub pipeline...
+[1/5430] Fetching from Finnhub: NVDA
+[2/5430] Fetching from Finnhub: MSFT
+[3/5430] Fetching from Finnhub: AAPL
+[4/5430] Fetching from Finnhub: AMZN
+[5/5430] Fetching from Finnhub: GOOGL
+[6/5430] Fetching from Finnhub: GOOG
+[7/5430] Fetching from Finnhub: META
+[8/5430] Fetching from Finnhub: NA
+[9/5430] Fetching from Finnhub: AVGO
+[10/5430] Fetching from Finnhub: TSLA
+[11/5430] Fetching from Finnhub: TSM
+[12/5430] Fetching from Finnhub: WMT
+[13/5430] Fetching from Finnhub: JPM
+[14/5430] Fetching from Finnhub: LLY
+**Today (2025-07-03 00:00:00) is not a trading day. Skipping EODHD download.**
+Running historical download from 2025-07-02 to 2025-07-02...
+Historical download 2025-07-02 to 2025-07-02 complete.
+**Today (2025-07-03 00:00:00) is not a trading day. Skipping EODHD download.**
+EODHD failed: name 'date_str' is not defined
+EODHD failed: name 'date_str' is not defined
+EODHD failed: strptime() argument 1 must be str, not datetime.date
+EODHD failed: strptime() argument 1 must be str, not datetime.date
+**Today (2025-07-03 00:00:00) is not a trading day. Skipping EODHD download.**
+EODHD failed: 'Symbol'
+EODHD failed: 'Symbol'
+EODHD failed: 'Symbol'

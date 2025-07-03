@@ -1,0 +1,11 @@
+pandas
+pandas_market_calendars
+finnhub-python
+tqdm
+dotenv
+google-cloud-secret-manager
+requests
+gradio
+gradio-calendar
+plotly
+google-cloud-storage 
