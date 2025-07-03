@@ -310,4 +310,4 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[eps_plot, rev_plot, close_plot, volume_plot, ticker_info]
         )
 
-app.launch()
+app.launch(server_name="0.0.0.0", server_port=7860)
