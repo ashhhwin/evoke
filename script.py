@@ -243,7 +243,9 @@ def run_finnhub_data_pipeline(tickers: List[str]):
 
 
 def run_daily_bulk_download(tickers: List[str]):
-    today = date.today(); date_str = today.isoformat()
+    #today = date.today(); 
+    today = "2025-07-02"
+    date_str = today.isoformat()
     raw_folder = f"daily/{date_str}/EODHD/raw_jsons"
     base_folder = f"daily/{date_str}/EODHD"
     log_lines: List[str] = []
@@ -361,6 +363,7 @@ def load_tickers(path: str = None, limit: int | None = None) -> List[str]:
 
 def run_historical_bulk_download(start_date: date, end_date: date , stock9k: pd.DataFrame):
     """Collect historical data for the given date range."""
+
     nyse = mcal.get_calendar('NYSE')
     trading_days = nyse.schedule(start_date=start_date, end_date=end_date).index.date.tolist()
       
@@ -735,9 +738,10 @@ def upload_string_to_gcs(bucket_name: str, destination_blob_name: str, data: str
 
 BUCKET_NAME = os.getenv("BUCKET_NAME", "historical_data_evoke")
 
-# Update this helper to prefix all GCS paths with 'market/data/'
+# Update this helper to prefix all GCS paths with 'market/' only
+# so that the structure is: bucket/market/daily/... and bucket/market/historical/...
 def gcs_path(path: str) -> str:
-    return f"market/data/{path}" if not path.startswith("market/data/") else path
+    return f"market/{path}" if not path.startswith("market/") else path
 
 if __name__ == "__main__":
     tickers = load_tickers(limit=3)
