@@ -152,7 +152,7 @@ def load_historical_close_prices(ticker: str, data_file=Path("market_data/histor
     else:
         raise ValueError(f"No data found for ticker '{ticker}' in {data_file}")
     
-def load_eps_revenue_changes(path=Path("market_data/eps_revenue_changes.csv")) -> pd.DataFrame:
+def load_eps_revenue_changes(path=Path("market_data/eps_revenue_cha8nges.csv")) -> pd.DataFrame:
     try:
         if path.exists():
             return pd.read_csv(path)
@@ -189,12 +189,9 @@ def get_secret(project_id: str, secret_id: str, version_id: str = "latest") -> s
     response = client.access_secret_version(request={"name": name})
     return response.payload.data.decode("UTF-8")
 
-GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "your-gcp-project-id")
-FINNHUB_SECRET_NAME = os.getenv("FINNHUB_SECRET_NAME", "finnhub-api-key")
-EODHD_SECRET_NAME = os.getenv("EODHD_SECRET_NAME", "eodhd-api-key")
-
-FINNHUB_API_KEY = get_secret(GCP_PROJECT_ID, FINNHUB_SECRET_NAME)
-EOD_API_TOKEN = get_secret(GCP_PROJECT_ID, EODHD_SECRET_NAME)
+GCP_PROJECT_ID = "tonal-nucleus-464617-n2"
+FINNHUB_SECRET_NAME = "finnhub_api_key"
+EODHD_SECRET_NAME = "eodhd_api_key"
 
 if __name__ == "__main__":
     run_eodhd_pipeline()
