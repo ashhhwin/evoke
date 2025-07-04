@@ -244,10 +244,8 @@ def run_finnhub_data_pipeline(tickers: List[str]):
 
 def run_daily_bulk_download(tickers: List[str]):
     
-    date_str = "2025-07-02"
-    today = datetime.strptime(date_str, "%Y-%m-%d").date()
-    #today= date.today()
-    #date_str = today.isoformat()
+    today= date.today()
+    date_str = today.isoformat()
     raw_folder = f"daily/{date_str}/EODHD/raw_jsons"
     base_folder = f"daily/{date_str}/EODHD"
     log_lines: List[str] = []
