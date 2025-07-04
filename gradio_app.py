@@ -29,14 +29,14 @@ def get_ticker_list():
 def run_finnhub():
     try:
         msg = run_finnhub_pipeline()
-        return msg if msg else "✅ Finnhub data download completed."
+        return msg if msg else "Finnhub data download completed."
     except Exception as e:
         return f"Failed: {e}"
 
 def run_eodhd():
     try:
         msg = run_eodhd_pipeline()
-        return msg if msg else "✅ OHLCV (EODHD) download completed."
+        return msg if msg else "OHLCV (EODHD) download completed."
     except Exception as e:
         return f"Failed: {e}"
 
@@ -45,7 +45,7 @@ def run_historical(start, end):
         start_date = start.date()
         end_date = end.date()
         msg = run_historical_pipeline(start_date, end_date)
-        return msg if msg else f"✅ Historical data downloaded from {start_date} to {end_date}"
+        return msg if msg else f"Historical data downloaded from {start_date} to {end_date}"
     except Exception as e:
         return f"Failed: {e}"
     
@@ -108,11 +108,11 @@ def run_both_pipelines():
         try:
             tickers = load_tickers()
         except Exception as e:
-            return f"❌ Failed: {e}"
+            return f"Failed: {e}"
         run_pipelines_concurrently(tickers)
-        return "✅ Both Finnhub and EODHD pipelines completed."
+        return "Both Finnhub and EODHD pipelines completed."
     except Exception as e:
-        return f"❌ Failed: {e}"
+        return f"Failed: {e}"
        
 def plot_close_price_history(ticker: str):
     try:
