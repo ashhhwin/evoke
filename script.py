@@ -9,7 +9,8 @@ from datetime import date, timedelta, datetime
 from pathlib import Path
 from typing import List, Dict, Callable, Optional
 from concurrent.futures import ThreadPoolExecutor
-
+from google.cloud import storage
+import io
 import pandas as pd
 import pandas_market_calendars as mcal
 import finnhub as fb
@@ -48,15 +49,59 @@ BASE_EOD_URL    = "https://eodhd.com/api/eod-bulk-last-day/US"
 URL_FUNDAMENTAL = "https://eodhd.com/api/fundamentals"
 DATA_DIR        = Path("market_data")
 RATE_LIMIT_SEC   = 0.8
-PROGRESS_LOG = Path("market_data/progress.log")
+
 
 start_date = date(2025, 1, 1)
 end_date = date(2025, 12, 31)
 YEARS_OF_HISTORY = 5
+
+GCS_BUCKET = "historical_data_evoke"
+PROGRESS_LOG = "market_data/progress.log"
+
+
+def gcs_path(path: str) -> str:
+    return f"market_data/{path}" if not path.startswith("market_data/") else path
+
+def upload_to_gcs(bucket_name: str, destination_blob_name: str, source_file: str):
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(destination_blob_name)
+    blob.upload_from_filename(source_file)
+
+def upload_string_to_gcs(bucket_name: str, destination_blob_name: str, data: str):
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(destination_blob_name)
+    blob.upload_from_string(data)
+
+def upload_dataframe_to_gcs(df: pd.DataFrame, blob_path: str):
+    client = storage.Client()
+    bucket = client.bucket(BUCKET_NAME)
+    blob = bucket.blob(blob_path)
+    buffer = io.StringIO()
+    df.to_csv(buffer, index=False)
+    blob.upload_from_string(buffer.getvalue(), content_type="text/csv")
+
+def read_csv_from_gcs(blob_path: str) -> pd.DataFrame:
+    client = storage.Client()
+    bucket = client.bucket(BUCKET_NAME)
+    blob = bucket.blob(blob_path)
+    content = blob.download_as_text()
+    return pd.read_csv(io.StringIO(content), keep_default_na=False, na_values=[""])
+
 def log_progress(msg: str):
-    PROGRESS_LOG.parent.mkdir(parents=True, exist_ok=True)
-    with PROGRESS_LOG.open("a") as f:
-        f.write(f"{msg}\n")
+    log_path = "market_data/progress.log"
+    client = storage.Client()
+    bucket = client.bucket(BUCKET_NAME)
+    blob = bucket.blob(log_path)
+    try:
+        current_log = blob.download_as_text() if blob.exists() else ""
+    except:
+        current_log = ""
+    updated_log = current_log + f"{msg}\n"
+    blob.upload_from_string(updated_log)
+
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)-8s %(message)s",
@@ -176,11 +221,9 @@ def run_finnhub_data_pipeline(tickers: List[str]):
     # Save raw CSVs to GCS
     for name, lst in collected.items():
         if lst:
-            with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmpf:
-                pd.concat(lst, ignore_index=True).to_csv(tmpf.name, index=False)
-                upload_to_gcs(BUCKET_NAME, gcs_path(f"{raw_dir}/{name}.csv"), tmpf.name)
-            os.remove(tmpf.name)
-
+            full_df = pd.concat(lst, ignore_index=True)
+            upload_dataframe_to_gcs(full_df, gcs_path(f"{raw_dir}/{name}.csv"))
+            
     # Transform helper
     def _pivot(df_q, df_y, value_col, out_name):
         START_YEAR = date.today().year - YEARS_OF_HISTORY
@@ -201,42 +244,23 @@ def run_finnhub_data_pipeline(tickers: List[str]):
         if "revenue" in out_name:
             num_cols = [col for col in final.columns if col not in ["ticker", "api_run_date"]]
             final[num_cols] = final[num_cols].astype(float) / 1e6
-        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmpf:
-            final.to_csv(tmpf.name, index=False)
-            upload_to_gcs(BUCKET_NAME, gcs_path(f"{tx_dir}/{out_name}"), tmpf.name)
-        os.remove(tmpf.name)
+        upload_dataframe_to_gcs(final, gcs_path(f"{tx_dir}/{out_name}"))
 
     # Revenue transform
     try:
-        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as qf, tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as yf:
-            upload_path_q = gcs_path(f"{raw_dir}/revenue_estimates_quarterly.csv")
-            upload_path_y = gcs_path(f"{raw_dir}/revenue_estimates_annual.csv")
-            # Download from GCS to temp files
-            storage_client = storage.Client()
-            bucket = storage_client.bucket(BUCKET_NAME)
-            bucket.blob(upload_path_q).download_to_filename(qf.name)
-            bucket.blob(upload_path_y).download_to_filename(yf.name)
-            _pivot(pd.read_csv(qf.name), pd.read_csv(yf.name), "revenueAvg", gcs_path(f"revenue_transformed_{today_iso}.csv"))
-        os.remove(qf.name)
-        os.remove(yf.name)
-    except Exception:
-        logger.warning("Revenue raw files missing – skipping transform")
+        df_q = read_csv_from_gcs(gcs_path(f"{raw_dir}/revenue_estimates_quarterly.csv"))
+        df_y = read_csv_from_gcs(gcs_path(f"{raw_dir}/revenue_estimates_annual.csv"))
+        _pivot(df_q, df_y, "revenueAvg", f"revenue_transformed_{today_iso}.csv")
+    except Exception as e:
+        log_progress(f"Revenue transform failed: {e}")
 
     # EPS transform
     try:
-        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as qf, tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as yf:
-            upload_path_q = gcs_path(f"{raw_dir}/eps_estimates_quarterly.csv")
-            upload_path_y = gcs_path(f"{raw_dir}/eps_estimates_annual.csv")
-            storage_client = storage.Client()
-            bucket = storage_client.bucket(BUCKET_NAME)
-            bucket.blob(upload_path_q).download_to_filename(qf.name)
-            bucket.blob(upload_path_y).download_to_filename(yf.name)
-            _pivot(pd.read_csv(qf.name), pd.read_csv(yf.name), "epsAvg", gcs_path(f"eps_transformed_{today_iso}.csv"))
-        os.remove(qf.name)
-        os.remove(yf.name)
-    except Exception:
-        logger.warning("EPS raw files missing – skipping transform")
-
+        df_q = read_csv_from_gcs(gcs_path(f"{raw_dir}/eps_estimates_quarterly.csv"))
+        df_y = read_csv_from_gcs(gcs_path(f"{raw_dir}/eps_estimates_annual.csv"))
+        _pivot(df_q, df_y, "epsAvg", f"eps_transformed_{today_iso}.csv")
+    except Exception as e:
+        log_progress(f"EPS transform failed: {e}")
 # ──────────────────────────────────────────────────────────────────────────────
 # EODHD daily download
 # ──────────────────────────────────────────────────────────────────────────────
@@ -244,16 +268,18 @@ def run_finnhub_data_pipeline(tickers: List[str]):
 
 def run_daily_bulk_download(tickers: List[str]):
     
-    date_str = "2025-07-02"
-    today = datetime.strptime(date_str, "%Y-%m-%d").date()
-    #today= date.today()
-    #date_str = today.isoformat()
+    #date_str = "2025-07-02"
+    #today = datetime.strptime(date_str, "%Y-%m-%d").date()
+    today= date.today()
+    date_str = today.isoformat()
     raw_folder = f"daily/{date_str}/EODHD/raw_jsons"
     base_folder = f"daily/{date_str}/EODHD"
     log_lines: List[str] = []
     stock9k = load_master_tickers()
     # Download bulk JSON
     bulk_json_gcs_path = gcs_path(f"{raw_folder}/eod_us_{date_str}.json")
+    fundamentals_json_gcs_path = gcs_path(f"{base_folder}/fundamentals_{date_str}.json")
+    merged_csv_gcs_path = gcs_path(f"{base_folder}/eod_us_{date_str}_merged.csv")
     try:
         logger.info("[EODHD] Downloading bulk for %s…", date_str)
         js = fetch_json(
@@ -271,6 +297,7 @@ def run_daily_bulk_download(tickers: List[str]):
 
     if "MarketCapitalization" in df.columns:
         df["MarketCapitalization"] = pd.to_numeric(df["MarketCapitalization"], errors="coerce") / 1e6
+    
     df['date'] = date_str
     df["date"] = pd.to_datetime(df["date"])
     df["Close_to_Close (%)"]=0.0
@@ -317,10 +344,10 @@ def run_daily_bulk_download(tickers: List[str]):
             f_json["Symbol"] = tk
             fundamentals_json_list.append(f_json)
         except Exception as e:
-            log_lines.append(f"[ERROR] fundamentals {tk}: {e}")
-            log_progress(f"[{i+1}/{len(tickers)}] ERROR for {tk}: {e}")
+            log_progress(f"[ERROR] fundamentals {tk}: {e}")
         time.sleep(0.6)
-    # Save fundamentals to GCS
+
+    # Upload full fundamentals JSON
     upload_string_to_gcs(BUCKET_NAME, fundamentals_json_gcs_path, json.dumps(fundamentals_json_list, indent=2))
 
     # Merge enriched fundamentals
@@ -333,15 +360,10 @@ def run_daily_bulk_download(tickers: List[str]):
             df[col] = pd.to_numeric(df[col], errors="ignore")
 
     final_df = format_data(df)
-    merged_csv_gcs_path = gcs_path(f"{base_folder}/eod_us_{date_str}_merged.csv")
-    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmpf:
-        final_df.to_csv(tmpf.name, index=False)
-        upload_to_gcs(BUCKET_NAME, merged_csv_gcs_path, tmpf.name)
-    os.remove(tmpf.name)
+    upload_dataframe_to_gcs(final_df, merged_csv_gcs_path)
 
-    if log_lines:
-        log_gcs_path = gcs_path(f"{base_folder}/log.txt")
-        upload_string_to_gcs(BUCKET_NAME, log_gcs_path, "\n".join(log_lines))
+    log_progress(f"✅ EODHD data pipeline complete for {date_str}")
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Convenience loader
@@ -377,6 +399,7 @@ def run_historical_bulk_download(start_date: date, end_date: date , stock9k: pd.
 
     # Create historical folder with date range in name (format: MM-DD-YY to MM-DD-YY)
     folder_name = f"{start_date.strftime('%m-%d-%y')} to {end_date.strftime('%m-%d-%y')}"
+    hist_prefix = f"historical/{folder_name}"
     hist_folder = DATA_DIR / "historical" / folder_name
     hist_folder.mkdir(parents=True, exist_ok=True)
     
@@ -401,8 +424,6 @@ def run_historical_bulk_download(start_date: date, end_date: date , stock9k: pd.
               #  entry['date'] = current.isoformat()
             
             df = normalize_columns(pd.DataFrame(js))
-            # Divide MarketCapitalization by 1e6 if present
-
             df = df.merge(stock9k,on='Symbol', how='right')
 
             df = df.drop(columns=['Company Name_x'], errors='ignore')
@@ -425,8 +446,8 @@ def run_historical_bulk_download(start_date: date, end_date: date , stock9k: pd.
             # Save individual daily file
             output_file = hist_folder / f"{date_str}.csv"
             df = format_data(df)  # Apply final formatting
-            df.to_csv(output_file, index=False)
-            
+            #df.to_csv(output_file, index=False)
+            upload_dataframe_to_gcs(df, gcs_path(f"{hist_prefix}/{date_str}.csv"))
             logger.info(f"Saved data for {date_str} to {output_file}")
             
             # Add to list of all data
@@ -463,50 +484,61 @@ def run_historical_bulk_download(start_date: date, end_date: date , stock9k: pd.
                 if col not in ["Symbol", "Trade_Date", "MarketCapCategory"]:
                     merged_df[col] = pd.to_numeric(merged_df[col], errors="ignore")
 
-            
+            merged_path = gcs_path(f"{hist_prefix}/{folder_name}.csv")
+            tableau_path = gcs_path("historical/for_tableau_db.csv")
             # Save merged file
             merged_file = hist_folder / f"{start_date.strftime('%m-%d-%y')} to {end_date.strftime('%m-%d-%y')}.csv"
             merged_df = format_data(merged_df)  # Apply final formatting
-            merged_df.to_csv(merged_file, index=False)
-            logger.info(f"Saved merged data to {merged_file}")
-
+            #merged_df.to_csv(merged_file, index=False)
+            upload_dataframe_to_gcs(merged_df, merged_path)
+            upload_dataframe_to_gcs(merged_df, tableau_path)
+            #logger.info(f"Saved merged data to {merged_file}")
+            log_progress(f"✅ Uploaded merged historical data for {folder_name}")
             # Also save/overwrite for_tableau_db.csv in historical/
-            tableau_path = DATA_DIR / "historical" / "for_tableau_db.csv"
-            merged_df.to_csv(tableau_path, index=False)
-            logger.info(f"Saved Tableau-ready data to {tableau_path}")
+            #tableau_path = DATA_DIR / "historical" / "for_tableau_db.csv"
+            #merged_df.to_csv(tableau_path, index=False)
+            #logger.info(f"Saved Tableau-ready data to {tableau_path}")
         except Exception as e:
             error_msg = f"[ERROR] Failed to create merged file: {e}"
             logger.error(error_msg)
             log_lines.append(error_msg)
 
-    if log_lines:
-        (hist_folder / "log.txt").write_text("\n".join(log_lines))
-        logger.warning(f"Errors logged at: {hist_folder}/log.txt")
+    if log_lines:log_blob = gcs_path(f"{hist_prefix}/log.txt")
+        upload_string_to_gcs(BUCKET_NAME, log_blob, "\n".join(log_lines))
+        log_progress(f"Historical data finished with some errors (logged to {log_blob})")
     else:
-        logger.info("Historical data downloaded with no errors.")
+        log_progress(f"Historical data from {start_date} to {end_date} downloaded successfully.")
         return f"Historical data from {start_date} to {end_date} downloaded successfully."
 
 # ──────────────────────────────────────────────────────────────────────────────
 # TICKER WISE EPS/REVENUE LOADER
 # ──────────────────────────────────────────────────────────────────────────────
-def get_latest_transformed_folder(base_dir=DATA_DIR / "daily"):
-    all_dates = sorted([d.name for d in base_dir.iterdir() if d.is_dir()], reverse=True)
-    for date_str in all_dates:
-        tx_dir = base_dir / date_str / "FINNHUB" / "transformed"
-        if tx_dir.exists():
-            return tx_dir
-    raise FileNotFoundError("No valid transformed EPS/Revenue folder found.")
+def get_latest_transformed_folder():
+    client = storage.Client()
+    blobs = list(client.list_blobs(BUCKET_NAME, prefix="market_data/daily/"))
+    date_folders = sorted({b.name.split("/")[2] for b in blobs if "daily/" in b.name and len(b.name.split("/")) > 2}, reverse=True)
+    for date in date_folders:
+        prefix = f"market_data/daily/{date}/FINNHUB/transformed/"
+        files = list(client.list_blobs(BUCKET_NAME, prefix=prefix))
+        if any("eps_transformed" in b.name for b in files):
+            return prefix
+    raise FileNotFoundError("No valid transformed EPS/Revenue folder found in GCS.")
 
 def load_eps_and_revenue_data():
-    tx_dir = get_latest_transformed_folder()
-    eps_file = next(tx_dir.glob("eps_transformed_*.csv"), None)
-    rev_file = next(tx_dir.glob("revenue_transformed_*.csv"), None)
-    if not eps_file or not rev_file:
-        raise FileNotFoundError("EPS or Revenue file not found in latest folder.")
+    folder_prefix = get_latest_transformed_folder()
+    client = storage.Client()
+    blobs = list(client.list_blobs(BUCKET_NAME, prefix=folder_prefix))
 
-    eps_df = pd.read_csv(eps_file)
-    rev_df = pd.read_csv(rev_file)
+    eps_blob = next((b.name for b in blobs if "eps_transformed" in b.name), None)
+    rev_blob = next((b.name for b in blobs if "revenue_transformed" in b.name), None)
+
+    if not eps_blob or not rev_blob:
+        raise FileNotFoundError("EPS or Revenue file not found in latest GCS folder.")
+
+    eps_df = read_csv_from_gcs(eps_blob)
+    rev_df = read_csv_from_gcs(rev_blob)
     return eps_df, rev_df
+
 
 def get_ticker_data(ticker: str, eps_df: pd.DataFrame, rev_df: pd.DataFrame):
     eps_row = eps_df[eps_df["ticker"] == ticker].drop(columns=["api_run_date"], errors="ignore")
@@ -724,26 +756,6 @@ def load_master_tickers(path: str = None) -> pd.DataFrame:
             return pd.read_csv(p, keep_default_na=False)
     raise FileNotFoundError("Could not find master_tickers_with_flags_types.csv in project root.")
 
-# Helper to upload a file to GCP bucket
-def upload_to_gcs(bucket_name: str, destination_blob_name: str, source_file: str):
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(destination_blob_name)
-    blob.upload_from_filename(source_file)
-
-# Helper to upload string data to GCP bucket
-def upload_string_to_gcs(bucket_name: str, destination_blob_name: str, data: str):
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(destination_blob_name)
-    blob.upload_from_string(data)
-
-BUCKET_NAME = os.getenv("BUCKET_NAME", "historical_data_evoke")
-
-# Update this helper to prefix all GCS paths with 'market/' only
-# so that the structure is: bucket/market/daily/... and bucket/market/historical/...
-def gcs_path(path: str) -> str:
-    return f"market/{path}" if not path.startswith("market/") else path
 
 if __name__ == "__main__":
     tickers = load_tickers(limit=3)
