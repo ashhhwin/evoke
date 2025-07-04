@@ -746,7 +746,7 @@ def gcs_path(path: str) -> str:
     return f"market/{path}" if not path.startswith("market/") else path
 
 if __name__ == "__main__":
-    tickers = load_tickers(limit=3)
+    tickers = load_tickers(limit=None)
     run_pipelines_concurrently(tickers)
     detect_eps_revenue_changes()
     #update_cron_stats(True)
