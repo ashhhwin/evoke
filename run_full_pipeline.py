@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import date , datetime
+from datetime import date, datetime
 import pandas as pd
 import pandas_market_calendars as mcal
 from concurrent.futures import ThreadPoolExecutor
@@ -13,44 +13,77 @@ from script import (
 )
 from google.cloud import secretmanager
 import os
-
+GCS_BUCKET = "historical_data_evoke" 
 PROGRESS_LOG = Path("market_data/progress.log")
 
 def log_progress(message: str):
-    PROGRESS_LOG.parent.mkdir(parents=True, exist_ok=True) 
-    PROGRESS_LOG.open("a").write(f"{message}\n")
+    client = storage.Client()
+    bucket = client.bucket(GCS_BUCKET)
+    blob = bucket.blob(PROGRESS_LOG)
+    if blob.exists():
+        current_log = blob.download_as_text()
+    else:
+        current_log = ""
+    updated_log = current_log + f"{message}\n"
+    blob.upload_from_string(updated_log, content_type="text/plain")
+##### HELPERS    
+def upload_dataframe_to_gcs(df: pd.DataFrame, blob_path: str):
+    client = storage.Client()
+    bucket = client.bucket(GCS_BUCKET)
+    blob = bucket.blob(blob_path)
+    csv_buffer = io.StringIO()
+    df.to_csv(csv_buffer, index=False)
+    blob.upload_from_string(csv_buffer.getvalue(), content_type="text/csv")
 
-def get_latest_transformed_folder(base_dir=Path("market_data/daily")):
-    all_dates = sorted([d.name for d in base_dir.iterdir() if d.is_dir()], reverse=True)
-    for date_str in all_dates:
-        tx_dir = base_dir / date_str / "FINNHUB" / "transformed"
-        if tx_dir.exists():
-            return tx_dir
+def read_csv_from_gcs(blob_path: str) -> pd.DataFrame:
+    client = storage.Client()
+    bucket = client.bucket(GCS_BUCKET)
+    blob = bucket.blob(blob_path)
+    content = blob.download_as_text()
+    return pd.read_csv(io.StringIO(content),infer_datetime_format=True,keep_default_na = False,na_values=[''])
+
+def get_latest_transformed_folder():
+    client = storage.Client()
+    blobs = client.list_blobs(GCS_BUCKET, prefix="market_data/daily/", delimiter="/")
+    dates = sorted({blob.name.split("/")[2] for blob in blobs if len(blob.name.split("/")) > 2}, reverse=True)
+    for date_str in dates:
+        prefix = f"market_data/daily/{date_str}/FINNHUB/transformed/"
+        files = list(client.list_blobs(GCS_BUCKET, prefix=prefix))
+        if any("eps_transformed" in b.name or "revenue_transformed" in b.name for b in files):
+            return prefix
     raise FileNotFoundError("No valid transformed EPS/Revenue folder found.")
 
 def load_eps_and_revenue_data():
     try:
-        tx_dir = get_latest_transformed_folder()
-        eps_file = next(tx_dir.glob("eps_transformed_*.csv"), None)
-        rev_file = next(tx_dir.glob("revenue_transformed_*.csv"), None)
-        if not eps_file or not rev_file:
-            raise FileNotFoundError("EPS or Revenue file not found in latest folder.")
-        eps_df = pd.read_csv(eps_file)
-        rev_df = pd.read_csv(rev_file)
+        folder_prefix = get_latest_transformed_folder()
+        client = storage.Client()
+        blobs = list(client.list_blobs(GCS_BUCKET, prefix=folder_prefix))
+        eps_blob = next((b.name for b in blobs if "eps_transformed_" in b.name and b.name.endswith(".csv")),None)
+        rev_blob = next((b.name for b in blobs if "revenue_transformed_" in b.name and b.name.endswith(".csv")),None)
+        if not eps_blob or not rev_blob:
+            raise FileNotFoundError("EPS or Revenue CSV file not found in GCS folder.")
+        eps_df = read_csv_from_gcs(eps_blob)
+        rev_df = read_csv_from_gcs(rev_blob)
         return eps_df, rev_df
     except Exception as e:
-        raise FileNotFoundError(f"Error loading EPS/Revenue data: {e}")
+        raise FileNotFoundError(f"Error loading EPS/Revenue data from GCS: {e}")
 
-def load_latest_eodhd_merged(ticker: str, base_dir=Path("market_data/daily")) -> pd.Series:
-    all_dates = sorted([d.name for d in base_dir.iterdir() if d.is_dir()], reverse=True)
-    for date_str in all_dates:
-        file_path = base_dir / date_str / "EODHD" / f"eod_us_{date_str}_merged.csv"
-        if file_path.exists():
-            df = pd.read_csv(file_path)
+
+def load_latest_eodhd_merged(ticker: str) -> pd.Series:
+    client = storage.Client()
+    blobs = client.list_blobs(GCS_BUCKET, prefix="market_data/daily/", delimiter="/")
+    dates = sorted({blob.name.split("/")[2] for blob in blobs if len(blob.name.split("/")) > 2}, reverse=True)
+
+    for date_str in dates:
+        blob_path = f"market_data/daily/{date_str}/EODHD/eod_us_{date_str}_merged.csv"
+        try:
+            df = read_csv_from_gcs(blob_path)
             match = df[df["Symbol"].str.upper() == ticker.upper()]
             if not match.empty:
-                return match.iloc[0]  # Return the first matching row as a Series
-    raise FileNotFoundError(f"No EODHD data found for ticker {ticker}")
+                return match.iloc[0]
+        except:
+            continue
+    raise FileNotFoundError(f"No EODHD data found in GCS for ticker {ticker}")
 
 
 def get_ticker_data(ticker: str, eps_df: pd.DataFrame, rev_df: pd.DataFrame):
@@ -129,43 +162,36 @@ def run_historical_pipeline(start: str, end: str):
         log_progress(f"Historical download failed: {e}")
         return f"Failed: {e}"  
     
+def load_historical_close_prices(ticker: str) -> pd.DataFrame:
+    blob_path = "Final_data_1year.csv"
+    df = read_csv_from_gcs(blob_path)
 
-def load_historical_close_prices(ticker: str, data_file=Path("market_data/historical/Final/last_1_year_data.csv")) -> pd.DataFrame:
-    if not data_file.exists():
-        raise FileNotFoundError(f"{data_file} not found.")
-    # Read safely: keep 'NA' symbol intact, treat empty strings as NaN
-    df = pd.read_csv(
-        data_file,
-        parse_dates=["Trade_Date"],
-        dayfirst=False,
-        infer_datetime_format=True,
-        keep_default_na=False,
-        na_values=[""]
-    )
-    # Filter for the specific ticker (case-insensitive)
     df = df[df["Symbol"].str.upper() == ticker.upper()]
-    # Keep only required columns if available
     required_columns = ["Trade_Date", "P_Close", "volume", "Close_to_Close (%)", "V_14D_MA", "V_50D_MA"]
     existing_columns = [col for col in required_columns if col in df.columns]
+
     if not df.empty and existing_columns:
         return df[existing_columns].dropna().sort_values("Trade_Date")
     else:
-        raise ValueError(f"No data found for ticker '{ticker}' in {data_file}")
+        raise ValueError(f"No data found for ticker '{ticker}' in {blob_path}")
+
     
-def load_eps_revenue_changes(path=Path("market_data/eps_revenue_cha8nges.csv")) -> pd.DataFrame:
+def load_eps_revenue_changes() -> pd.DataFrame:
+    blob_path = "market_data/eps_revenue_changes.csv"
     try:
-        if path.exists():
-            return pd.read_csv(path)
-        else:
-            raise FileNotFoundError("eps_revenue_changes.csv not found.")
+        return read_csv_from_gcs(blob_path)
     except Exception as e:
-        raise FileNotFoundError(f"Error loading EPS/Revenue changes: {e}")
+        raise FileNotFoundError(f"Error loading EPS/Revenue changes from GCS: {e}")
+
     
-def get_latest_daily_date(base_dir=Path("market_data/daily")) -> str:
-    all_dates = sorted([d.name for d in base_dir.iterdir() if d.is_dir()], reverse=True)
-    if not all_dates:
+def get_latest_daily_date() -> str:
+    client = storage.Client()
+    blobs = client.list_blobs(GCS_BUCKET, prefix="market_data/daily/", delimiter="/")
+    dates = sorted({blob.name.split("/")[2] for blob in blobs if len(blob.name.split("/")) > 2}, reverse=True)
+    if not dates:
         return "No data available"
-    return all_dates[0]
+    return dates[0]
+
 
 def run_pipelines_concurrently(tickers: list[str]) -> None:
     """
