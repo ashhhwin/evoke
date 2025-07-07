@@ -45,7 +45,7 @@ def read_csv_from_gcs(blob_path: str) -> pd.DataFrame:
 
 def get_latest_transformed_folder():
     client = storage.Client()
-    blobs = client.list_blobs(GCS_BUCKET, prefix="market_data/daily/", delimiter="/")
+    blobs = client.list_blobs(GCS_BUCKET, prefix="market_data/daily/")
     dates = sorted({blob.name.split("/")[2] for blob in blobs if len(blob.name.split("/")) > 2}, reverse=True)
     for date_str in dates:
         prefix = f"market_data/daily/{date_str}/FINNHUB/transformed/"
@@ -72,7 +72,7 @@ def load_eps_and_revenue_data():
 
 def load_latest_eodhd_merged(ticker: str) -> pd.Series:
     client = storage.Client()
-    blobs = client.list_blobs(GCS_BUCKET, prefix="market_data/daily/", delimiter="/")
+    blobs = client.list_blobs(GCS_BUCKET, prefix="market_data/daily/")
     dates = sorted({blob.name.split("/")[2] for blob in blobs if len(blob.name.split("/")) > 2}, reverse=True)
 
     for date_str in dates:
