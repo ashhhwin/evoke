@@ -272,6 +272,14 @@ def run_daily_bulk_download(tickers: List[str]):
     #today = datetime.strptime(date_str, "%Y-%m-%d").date()
     today= date.today()
     date_str = today.isoformat()
+    nyse = mcal.get_calendar('NYSE')
+    schedule = nyse.schedule(start_date=today, end_date=today)
+    trading_days = schedule.index.date.tolist()
+    if today not in trading_days:
+        message = f"**Today ({today}) is not a trading day. Skipping EODHD download.**"
+        log_progress(message)
+        return message
+        
     raw_folder = f"daily/{date_str}/EODHD/raw_jsons"
     base_folder = f"daily/{date_str}/EODHD"
     log_lines: List[str] = []
