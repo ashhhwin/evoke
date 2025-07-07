@@ -57,7 +57,7 @@ YEARS_OF_HISTORY = 5
 
 GCS_BUCKET = "historical_data_evoke"
 PROGRESS_LOG = "market_data/progress.log"
-
+BUCKET_NAME = "historical_data_evoke"
 
 def gcs_path(path: str) -> str:
     return f"market_data/{path}" if not path.startswith("market_data/") else path
