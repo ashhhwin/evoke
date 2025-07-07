@@ -13,6 +13,7 @@ from script import (
 )
 from google.cloud import secretmanager
 from google.cloud import storage
+import io
 import os
 GCS_BUCKET = "historical_data_evoke" 
 PROGRESS_LOG = Path("market_data/progress.log")
