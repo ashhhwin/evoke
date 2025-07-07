@@ -12,6 +12,7 @@ from script import (
     load_master_tickers
 )
 from google.cloud import secretmanager
+from google.cloud import storage
 import os
 GCS_BUCKET = "historical_data_evoke" 
 PROGRESS_LOG = Path("market_data/progress.log")
