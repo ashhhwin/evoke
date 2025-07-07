@@ -304,7 +304,7 @@ def run_daily_bulk_download(tickers: List[str]):
     df = df.drop(columns=['Company Name_x'], errors='ignore')
 
     if "MarketCapitalization" in df.columns:
-        df["MarketCapitalization"] = pd.to_numeric(df["MarketCapitalization"], errors="coerce") / 1e6
+        df["MarketCapitalization"] = (pd.to_numeric(df["MarketCapitalization"], errors="coerce") / 1e6).round(2)
     
     df['date'] = date_str
     df["date"] = pd.to_datetime(df["date"])
@@ -361,6 +361,8 @@ def run_daily_bulk_download(tickers: List[str]):
     # Merge enriched fundamentals
     if extra_rows:
         df = df.merge(pd.DataFrame(extra_rows), on="Symbol", how="left")
+        df['Shares_Out'] = (df['Shares_Out'] / 1e6).round(2)
+        df['Shares_Float'] = (df['Shares_Float'] / 1e6).round(2)
         logger.info(f"Final DataFrame shape before enrichment: {df.shape}")
 
     for col in df.columns:
