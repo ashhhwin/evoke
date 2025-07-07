@@ -268,10 +268,10 @@ def run_finnhub_data_pipeline(tickers: List[str]):
 
 def run_daily_bulk_download(tickers: List[str]):
     
-    #date_str = "2025-07-02"
-    #today = datetime.strptime(date_str, "%Y-%m-%d").date()
-    today= date.today()
-    date_str = today.isoformat()
+    date_str = "2025-07-03"
+    today = datetime.strptime(date_str, "%Y-%m-%d").date()
+    #today= date.today()
+    #date_str = today.isoformat()
     nyse = mcal.get_calendar('NYSE')
     schedule = nyse.schedule(start_date=today, end_date=today)
     trading_days = schedule.index.date.tolist()
@@ -767,7 +767,7 @@ def load_master_tickers(path: str = None) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    tickers = load_tickers(limit=None)
+    tickers = load_tickers(limit=5)
     run_pipelines_concurrently(tickers)
     detect_eps_revenue_changes()
     #update_cron_stats(True)
