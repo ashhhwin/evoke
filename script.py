@@ -503,7 +503,7 @@ def run_historical_bulk_download(start_date: date, end_date: date , stock9k: pd.
             logger.error(error_msg)
             log_lines.append(error_msg)
 
-    if log_lines:log_blob = gcs_path(f"{hist_prefix}/log.txt")
+    if log_lines:log_blob = gcs_path(f"{hist_prefix}/log.txt"):
         upload_string_to_gcs(BUCKET_NAME, log_blob, "\n".join(log_lines))
         log_progress(f"Historical data finished with some errors (logged to {log_blob})")
     else:
