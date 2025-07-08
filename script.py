@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 import glob
 from google.cloud import secretmanager, storage
 import tempfile
+import numpy as np
 
 
 
@@ -768,6 +769,114 @@ def load_master_tickers(path: str = None) -> pd.DataFrame:
             return pd.read_csv(p, keep_default_na=False)
     raise FileNotFoundError("Could not find master_tickers_with_flags_types.csv in project root.")
 
+def compute_eps_revenue_change_csv(start_date=None, end_date=None, output_path="market_data/eps_revenue_change_comparison.csv"):
+    """
+    Compare EPS and Revenue for two dates, compute % change, and output a CSV with:
+    ticker, company name, sector, market cap, previous date revenue, previous date eps, new date revenue, new date eps, % change eps, % change revenue
+    """
+    from datetime import datetime, timedelta
+    import pandas as pd
+    from google.cloud import storage
+    import numpy as np
+
+    # 1. List all available daily folders (dates)
+    client = storage.Client()
+    blobs = list(client.list_blobs(BUCKET_NAME, prefix="market_data/daily/"))
+    date_folders = sorted({b.name.split("/")[2] for b in blobs if "daily/" in b.name and len(b.name.split("/")) > 2})
+    if not date_folders:
+        raise FileNotFoundError("No daily folders found in GCS.")
+
+    # 2. Determine end_date and start_date
+    date_objs = [datetime.strptime(d, "%Y-%m-%d") for d in date_folders]
+    date_objs.sort()
+    if end_date is None:
+        end_date_obj = date_objs[-1]
+    else:
+        end_date_obj = datetime.strptime(str(end_date), "%Y-%m-%d") if not isinstance(end_date, datetime) else end_date
+    if start_date is None:
+        start_date_obj = end_date_obj - timedelta(weeks=4)
+        # Find closest available date <= start_date_obj
+        start_date_obj = max([d for d in date_objs if d <= start_date_obj], default=date_objs[0])
+    else:
+        start_date_obj = datetime.strptime(str(start_date), "%Y-%m-%d") if not isinstance(start_date, datetime) else start_date
+
+    start_str = start_date_obj.strftime("%Y-%m-%d")
+    end_str = end_date_obj.strftime("%Y-%m-%d")
+
+    # 3. Load transformed EPS and revenue files for both dates
+    def get_transformed_path(date_str, metric):
+        return f"market_data/daily/{date_str}/FINNHUB/transformed/{metric}_transformed_{date_str}.csv"
+
+    eps_start = read_csv_from_gcs(get_transformed_path(start_str, "eps"))
+    eps_end = read_csv_from_gcs(get_transformed_path(end_str, "eps"))
+    rev_start = read_csv_from_gcs(get_transformed_path(start_str, "revenue"))
+    rev_end = read_csv_from_gcs(get_transformed_path(end_str, "revenue"))
+
+    # 4. Load company metadata
+    meta = load_master_tickers()
+    meta = meta.rename(columns={"Symbol": "ticker", "Company Name": "company_name", "Sector": "sector", "MarketCapitalization": "market_cap"})
+
+    # 5. For each ticker, get latest period column (most recent, not api_run_date)
+    def get_latest_period(df):
+        period_cols = [c for c in df.columns if c not in ["ticker", "api_run_date"]]
+        if not period_cols:
+            return None
+        # Sort: Q4-24 > Q3-24 > 2024 > 2023, etc.
+        def sort_key(c):
+            if c.startswith("Q"):
+                q, y = c[1:].split("-")
+                return (int(y), int(q))
+            else:
+                return (int(c), 0)
+        period_cols = sorted(period_cols, key=sort_key, reverse=True)
+        return period_cols[0]
+
+    eps_period = get_latest_period(eps_end)
+    rev_period = get_latest_period(rev_end)
+    if eps_period is None or rev_period is None:
+        raise ValueError("No valid period columns found in EPS/Revenue files.")
+
+    # 6. Merge/join and compute % change
+    # Only keep tickers present in both start and end
+    tickers = set(eps_start["ticker"]).intersection(eps_end["ticker"]).intersection(rev_start["ticker"]).intersection(rev_end["ticker"])
+    rows = []
+    for tk in tickers:
+        try:
+            eps0 = float(eps_start.loc[eps_start["ticker"] == tk, eps_period].values[0])
+            eps1 = float(eps_end.loc[eps_end["ticker"] == tk, eps_period].values[0])
+            rev0 = float(rev_start.loc[rev_start["ticker"] == tk, rev_period].values[0])
+            rev1 = float(rev_end.loc[rev_end["ticker"] == tk, rev_period].values[0])
+        except Exception:
+            continue
+        # Compute % change
+        eps_pct = ((eps1 - eps0) / eps0 * 100) if eps0 not in (0, None, np.nan) and not pd.isna(eps0) else np.nan
+        rev_pct = ((rev1 - rev0) / rev0 * 100) if rev0 not in (0, None, np.nan) and not pd.isna(rev0) else np.nan
+        # Metadata
+        meta_row = meta[meta["ticker"] == tk]
+        if not meta_row.empty:
+            meta_row = meta_row.iloc[0]
+            company_name = meta_row["company_name"] if "company_name" in meta_row else ""
+            sector = meta_row["sector"] if "sector" in meta_row else ""
+            market_cap = meta_row["market_cap"] if "market_cap" in meta_row else ""
+        else:
+            company_name = ""
+            sector = ""
+            market_cap = ""
+        rows.append({
+            "ticker": tk,
+            "company_name": company_name,
+            "sector": sector,
+            "market_cap": market_cap,
+            f"{start_str}_revenue": rev0,
+            f"{start_str}_eps": eps0,
+            f"{end_str}_revenue": rev1,
+            f"{end_str}_eps": eps1,
+            "%_change_eps": eps_pct,
+            "%_change_revenue": rev_pct
+        })
+    out_df = pd.DataFrame(rows)
+    out_df.to_csv(output_path, index=False)
+    return out_df
 
 if __name__ == "__main__":
     tickers = load_tickers(limit=None)

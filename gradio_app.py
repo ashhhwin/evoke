@@ -16,6 +16,7 @@ import datetime
 from gradio_calendar import Calendar
 import plotly.graph_objects as go
 import pandas as pd
+from script import compute_eps_revenue_change_csv
 
 def get_ticker_list():
     try:
@@ -197,9 +198,7 @@ def plot_close_price_history(ticker: str):
             go.Figure(layout_title_text=f"No volume data available: {e}")
         )
 
-
-
-with gr.Blocks(theme=gr.themes.Soft()) as app:
+with gr.Blocks() as app:
     gr.Markdown("<h1 style='text-align:center; color:#00ff9d;'>📈 Market Data Dashboard</h1>")
 
     with gr.Tab("Download Daily Data"):
@@ -221,8 +220,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
     with gr.Tab("Download Historical Data"):
         gr.Markdown("## Historical OHLCV Download")
-        start_date = Calendar(type="date", label="Start Date")
-        end_date = Calendar(type="date", label="End Date")
+        start_date = Calendar(type="string", label="Start Date")
+        end_date = Calendar(type="string", label="End Date")
         run_btn = gr.Button("Run Historical Download")
         hist_status = gr.Textbox(label="Status", lines=2)
 
@@ -308,6 +307,28 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             fn=update_all,
             inputs=[ticker_dropdown, data_type],
             outputs=[eps_plot, rev_plot, close_plot, volume_plot, ticker_info]
+        )
+
+    with gr.Tab("EPS/Revenue Change Export"):
+        gr.Markdown("### Export EPS & Revenue Change Comparison CSV")
+        with gr.Row():
+            start_date_picker = Calendar(type="string", label="Start Date (default: 4 weeks ago)")
+            end_date_picker = Calendar(type="string", label="End Date (default: latest)")
+        export_btn = gr.Button("Generate CSV")
+        file_output = gr.File(label="Download CSV")
+
+        def run_eps_rev_change_export(start, end):
+            # start and end are string (YYYY-MM-DD) or None
+            s = start if start else None
+            e = end if end else None
+            out_path = "market_data/eps_revenue_change_comparison.csv"
+            compute_eps_revenue_change_csv(start_date=s, end_date=e, output_path=out_path)
+            return out_path
+
+        export_btn.click(
+            fn=run_eps_rev_change_export,
+            inputs=[start_date_picker, end_date_picker],
+            outputs=file_output
         )
 
 app.launch(server_name="0.0.0.0", server_port=7860)
