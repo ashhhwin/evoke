@@ -16,7 +16,6 @@ import datetime
 from gradio_calendar import Calendar
 import plotly.graph_objects as go
 import pandas as pd
-from script import compute_eps_revenue_change_csv
 from compare_eps_revenue import list_available_dates, list_available_periods, compare_eps_revenue
 import os
 import tempfile
