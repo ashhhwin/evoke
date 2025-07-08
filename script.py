@@ -268,10 +268,10 @@ def run_finnhub_data_pipeline(tickers: List[str]):
 
 def run_daily_bulk_download(tickers: List[str]):
     
-    date_str = "2025-07-03"
-    today = datetime.strptime(date_str, "%Y-%m-%d").date()
-    #today= date.today()
-    #date_str = today.isoformat()
+    #date_str = "2025-07-03"
+    #today = datetime.strptime(date_str, "%Y-%m-%d").date()
+    today= date.today()
+    date_str = today.isoformat()
     nyse = mcal.get_calendar('NYSE')
     schedule = nyse.schedule(start_date=today, end_date=today)
     trading_days = schedule.index.date.tolist()
@@ -439,6 +439,7 @@ def run_historical_bulk_download(start_date: date, end_date: date , stock9k: pd.
             df = df.drop(columns=['Company Name_x'], errors='ignore')
             if "MarketCapitalization" in df.columns:
                 df["MarketCapitalization"] = pd.to_numeric(df["MarketCapitalization"], errors="coerce") / 1e6
+                df["MarketCapitalization"] = df["MarketCapitalization"].round(2)
             logger.info(f"Calculating metrics for {date_str}")
             df['date'] = current.isoformat()
             df['date'] = pd.to_datetime(df['date'])
@@ -769,9 +770,9 @@ def load_master_tickers(path: str = None) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    tickers = load_tickers(limit=5)
-    run_daily_bulk_download(tickers)
-    #run_pipelines_concurrently(tickers)
+    tickers = load_tickers(limit=None)
+    run_pipelines_concurrently(tickers)
+    #run_daily_bulk_download(tickers)
     #detect_eps_revenue_changes()
     #update_cron_stats(True)
     
