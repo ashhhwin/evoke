@@ -320,7 +320,7 @@ def run_comparison(from_date, to_date, period):
     summary_text = " \
     ".join(f"{k}: {v}" for k, v in summary.items())
 
-    return output_file, "Comparison and insights complete.", eps_plot, rev_plot, eps_movers_table, rev_movers_table, summary_text
+    return "Comparison and insights complete.", eps_plot, rev_plot, eps_movers_table, rev_movers_table, summary_text
 
 
 # Dates & Periods
@@ -439,7 +439,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             to_date = gr.Dropdown(label="To Date", choices=dates, value=latest)
         period = gr.Dropdown(label="Period", choices=get_periods_for_date(latest), value=get_periods_for_date(latest))
         run_comparison_btn = gr.Button("Run Comparison")
-        output_file = gr.File(label="Download CSV", visible=False)
+        #output_file = gr.File(label="Download CSV", visible=False)
         status = gr.Textbox(label="Status", interactive=False)
 
         gr.Markdown("### EPS % Change Treemap")
@@ -461,7 +461,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         run_comparison_btn.click(
             fn=run_comparison,
             inputs=[from_date, to_date, period],
-            outputs=[output_file, status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box]
+            outputs=[ status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box]
         )
 
 app.launch(server_name="0.0.0.0", server_port=7860)
