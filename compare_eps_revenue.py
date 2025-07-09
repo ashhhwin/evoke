@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 import re
 from google.cloud import storage
 import io
+import tempfile
+
 
 logger = logging.getLogger(__name__)
 
@@ -217,13 +219,18 @@ def compare_eps_revenue(from_date=None, to_date=None, quarters=None, output_file
     ]
     df = df[final_cols]
 
+
     if output_file:
-        df.to_csv(output_file, index=False)
-        upload_to_gcs(
-        bucket_name="historical_data_evoke",
-        destination_blob_path=f"market_data/eps_rev_revisions/{Path(output_file).name}",
-        local_file_path=output_file
-        )
+        # Create a temporary local file
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".csv") as tmp_file:
+            df.to_csv(tmp_file.name, index=False)
+            tmp_file.flush()
+            upload_to_gcs(
+                bucket_name="historical_data_evoke",
+                destination_blob_path=f"market_data/revisions/{output_file}",
+                local_file_path=tmp_file.name
+            )
+
 
     return df
 
