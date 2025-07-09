@@ -22,12 +22,13 @@ def upload_to_gcs(bucket_name, destination_blob_path, local_file_path):
     blob.upload_from_filename(local_file_path)
     print(f"Uploaded {local_file_path} to gs://{bucket_name}/{destination_blob_path}")
 
-def read_csv_from_gcs(bucket_name, blob_path):
+def read_csv_from_gcs(bucket_name, blob_path)-> pd.DataFrame:
     client = storage.Client()
     bucket = client.bucket(bucket_name)
     blob = bucket.blob(blob_path)
     data = blob.download_as_text()
     return pd.read_csv(io.StringIO(data), keep_default_na=False, na_values=["", " "])
+
     
 def gcs_folder_exists(bucket_name, folder_prefix):
     client = storage.Client()
