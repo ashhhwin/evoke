@@ -23,6 +23,7 @@ def upload_to_gcs(bucket_name, destination_blob_path, local_file_path):
     print(f"Uploaded {local_file_path} to gs://{bucket_name}/{destination_blob_path}")
 
 def read_csv_from_gcs(bucket_name, blob_path)-> pd.DataFrame:
+    print(f"Reading from GCS Path: {blob_path}")
     client = storage.Client()
     bucket = client.bucket(bucket_name)
     blob = bucket.blob(blob_path)
