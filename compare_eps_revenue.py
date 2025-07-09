@@ -58,7 +58,7 @@ def get_latest_and_prior_dates(date_folders, weeks_apart=4):
     if len(date_folders) < 2:
         return None, None
     latest = date_folders[-1]
-    latest_date = datetime.strptime(latest.name, DATE_FMT)
+    latest_date = datetime.strptime(latest, DATE_FMT)
     target_date = latest_date - timedelta(weeks=weeks_apart)
     prior = min(date_folders[:-1], key=lambda d: abs(datetime.strptime(d.name, DATE_FMT) - target_date))
     return prior, latest
@@ -140,22 +140,22 @@ def compare_eps_revenue(from_date=None, to_date=None, quarters=None, output_file
             logger.warning("Could not determine prior date folder.")
             return None
 
-    latest_date = datetime.strptime(latest.name, DATE_FMT)
+    latest_date = datetime.strptime(latest, DATE_FMT)
     periods = quarters if quarters else [
         get_annual_label(latest_date.year) if annual else get_quarter_for_date(latest_date)
     ]
 
     suffix = "annual" if annual else "quarterly"
 
-    prev_rev_raw = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{prior.name}/FINNHUB/raw_data/revenue_estimates_quarterly.csv")
-    curr_rev_raw = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{latest.name}/FINNHUB/raw_data/revenue_estimates_quarterly.csv")
-    prev_eps_raw = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{prior.name}/FINNHUB/raw_data/eps_estimates_quarterly.csv")
-    curr_eps_raw = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{latest.name}/FINNHUB/raw_data/eps_estimates_quarterly.csv")
+    prev_rev_raw = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{prior}/FINNHUB/raw_data/revenue_estimates_quarterly.csv")
+    curr_rev_raw = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{latest}/FINNHUB/raw_data/revenue_estimates_quarterly.csv")
+    prev_eps_raw = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{prior}/FINNHUB/raw_data/eps_estimates_quarterly.csv")
+    curr_eps_raw = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{latest}/FINNHUB/raw_data/eps_estimates_quarterly.csv")
 
-    prev_rev = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{prior.name}/FINNHUB/transformed/revenue_transformed_{prior.name}.csv")
-    curr_rev = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{latest.name}/FINNHUB/transformed/revenue_transformed_{latest.name}.csv")
-    prev_eps = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{prior.name}/FINNHUB/transformed/eps_transformed_{prior.name}.csv")
-    curr_eps = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{latest.name}/FINNHUB/transformed/eps_transformed_{latest.name}.csv")
+    prev_rev = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{prior}/FINNHUB/transformed/revenue_transformed_{prior}.csv")
+    curr_rev = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{latest}/FINNHUB/transformed/revenue_transformed_{latest}.csv")
+    prev_eps = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{prior}/FINNHUB/transformed/eps_transformed_{prior}.csv")
+    curr_eps = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{latest}/FINNHUB/transformed/eps_transformed_{latest}.csv")
 
     rows = []
     for period in periods:
@@ -191,7 +191,7 @@ def compare_eps_revenue(from_date=None, to_date=None, quarters=None, output_file
     df = pd.DataFrame(rows)
 
     # Merge metadata
-    meta_df = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{latest.name}/EODHD/eod_us_{latest.name}_merged.csv")
+    meta_df = read_csv_from_gcs("historical_data_evoke", f"market_data/daily/{latest}/EODHD/eod_us_{latest}_merged.csv")
 
     df = pd.merge(
         df,
