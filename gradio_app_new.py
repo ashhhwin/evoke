@@ -17,11 +17,32 @@ import datetime
 from gradio_calendar import Calendar
 import plotly.graph_objects as go
 import pandas as pd
-from compare_eps_revenue import list_available_dates, list_available_periods, compare_eps_revenue,read_csv_from_gcs
+from compare_eps_revenue import list_available_dates, list_available_periods, compare_eps_revenue
 import os
 import tempfile
 import plotly.express as px
 import io
+import time
+
+def read_csv_from_gcs(bucket_name, blob_path, max_retries=5, delay=2):
+    """
+    Read CSV from GCS with retry logic.
+    """
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(blob_path)
+
+    print(f"Reading from GCS path: {blob_path}")
+
+    for attempt in range(max_retries):
+        if blob.exists():
+            content = blob.download_as_text()
+            return pd.read_csv(io.StringIO(content))
+        else:
+            print(f"[Attempt {attempt+1}] File not found: {blob_path}. Retrying in {delay}s...")
+            time.sleep(delay)
+
+    raise FileNotFoundError(f"File not found in GCS after {max_retries} attempts: {bucket_name}/{blob_path}")
 
 def get_ticker_list():
     try:
