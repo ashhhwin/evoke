@@ -409,7 +409,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         with gr.Row():
             from_date = gr.Dropdown(label="From Date", choices=dates, value=prior)
             to_date = gr.Dropdown(label="To Date", choices=dates, value=latest)
-        period = gr.Dropdown(label="Period", choices=get_periods_for_date(latest), value=get_periods_for_date(latest)[0])
+        period = gr.Dropdown(label="Period", choices=get_periods_for_date(latest), value=get_periods_for_date(latest))
         run_comparison_btn = gr.Button("Run Comparison")
         output_file = gr.File(label="Download CSV", visible=False)
         status = gr.Textbox(label="Status", interactive=False)
