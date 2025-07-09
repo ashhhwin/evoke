@@ -16,7 +16,7 @@ import datetime
 from gradio_calendar import Calendar
 import plotly.graph_objects as go
 import pandas as pd
-from compare_eps_revenue import list_available_dates, list_available_periods, compare_eps_revenue
+from compare_eps_revenue import list_available_dates, list_available_periods, compare_eps_revenue,read_csv_from_gcs
 import os
 import tempfile
 import plotly.express as px
@@ -208,8 +208,8 @@ def run_comparison(from_date, to_date, period):
 
     safe_period = str(period).replace(' ', '').replace('/', '').replace('\\', '').replace(':', '')
     output_file = f"eps_revenue_comparison_{from_date}_to_{to_date}_for_{safe_period}.csv"
-    df = compare_eps_revenue(from_date=from_date, to_date=to_date, quarters=[period] if period else None, output_file=output_file, annual=False)
-
+    compare_eps_revenue(from_date=from_date, to_date=to_date, quarters=[period] if period else None, output_file=output_file, annual=False)
+    df = read_csv_from_gcs('historical_data_evoke',f'market_data/revisions/{output_file}')
     if df is None or df.empty:
         return None, "No data found for the selected options.", "", "", "", "", ""
 
