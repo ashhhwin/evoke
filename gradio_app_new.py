@@ -209,6 +209,7 @@ def run_comparison(from_date, to_date, period):
     safe_period = str(period).replace(' ', '').replace('/', '').replace('\\', '').replace(':', '')
     output_file = f"eps_revenue_comparison_{from_date}_to_{to_date}_for_{safe_period}.csv"
     compare_eps_revenue(from_date=from_date, to_date=to_date, quarters=[period] if period else None, output_file=output_file, annual=False)
+    print("I AM HERE")
     df = read_csv_from_gcs('historical_data_evoke',f'market_data/revisions/{output_file}')
     if df is None or df.empty:
         return None, "No data found for the selected options.", "", "", "", "", ""
