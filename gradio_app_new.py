@@ -19,6 +19,8 @@ import pandas as pd
 from compare_eps_revenue import list_available_dates, list_available_periods, compare_eps_revenue
 import os
 import tempfile
+import plotly.express as px
+import io
 
 def get_ticker_list():
     try:
@@ -199,8 +201,7 @@ def plot_close_price_history(ticker: str):
             go.Figure(layout_title_text=f"Error: {e}"),
             go.Figure(layout_title_text=f"No volume data available: {e}")
         )
-import plotly.express as px
-import io
+
 
 def run_comparison(from_date, to_date, period):
     import plotly.express as px
