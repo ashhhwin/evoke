@@ -218,6 +218,7 @@ def compare_eps_revenue(from_date=None, to_date=None, quarters=None, output_file
     df = df[final_cols]
 
     if output_file:
+        df.to_csv(output_file, index=False)
         upload_to_gcs(
         bucket_name="historical_data_evoke",
         destination_blob_path=f"market_data/eps_rev_revisions/{Path(output_file).name}",
