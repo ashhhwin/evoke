@@ -23,7 +23,7 @@ import tempfile
 import plotly.express as px
 import io
 import time
-
+from google.cloud import storage
 def read_csv_from_gcs(bucket_name, blob_path, max_retries=5, delay=2):
     """
     Read CSV from GCS with retry logic.
