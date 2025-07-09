@@ -207,7 +207,7 @@ def run_comparison(from_date, to_date, period):
     import plotly.express as px
 
     safe_period = str(period).replace(' ', '').replace('/', '').replace('\\', '').replace(':', '')
-    output_file = f"eps_revenue_comparison_{from_date} to {to_date} for {safe_period}.csv"
+    output_file = f"eps_revenue_comparison_{from_date}_to_{to_date}_for_{safe_period}.csv"
     df = compare_eps_revenue(from_date=from_date, to_date=to_date, quarters=[period] if period else None, output_file=output_file, annual=False)
 
     if df is None or df.empty:
