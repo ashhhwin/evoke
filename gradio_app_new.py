@@ -1,3 +1,4 @@
+import time
 import gradio as gr
 from run_full_pipeline import (
     run_finnhub_pipeline,
@@ -212,6 +213,7 @@ def run_comparison(from_date, to_date, period):
     print("I AM HERE")
     gcs_path = f'market_data/revisions/{output_file}'
     print(f"Reading from GCS path: {gcs_path}")
+    time.sleep(5)
     df = read_csv_from_gcs('historical_data_evoke', gcs_path)
     #df = read_csv_from_gcs('historical_data_evoke',f'market_data/revisions/{output_file}')
     if df is None or df.empty:
