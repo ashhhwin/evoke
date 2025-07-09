@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(__file__).parent / "market_data"
 DATE_FMT = "%Y-%m-%d"
+bucket_name="historical_data_evoke"
 
 def upload_to_gcs(bucket_name, destination_blob_path, local_file_path):
     client = storage.Client()
@@ -27,12 +28,19 @@ def read_csv_from_gcs(bucket_name, blob_path):
     return pd.read_csv(io.StringIO(data), keep_default_na=False, na_values=["", " "])
 
 
-def get_date_folders(base_dir):
-    daily_dir = base_dir / "daily"
-    return sorted([
-        d for d in daily_dir.iterdir()
-        if d.is_dir() and re.match(r"\d{4}-\d{2}-\d{2}", d.name)
-    ], key=lambda d: d.name)
+def get_date_folders(bucket_name="historical_data_evoke", prefix="market_data/daily/"):
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    
+    blobs = client.list_blobs(bucket, prefix=prefix, delimiter="/")
+    date_folders = []
+    for page in blobs.pages:
+        for folder in page.prefixes:
+            match = re.match(rf"{prefix}(\d{{4}}-\d{{2}}-\d{{2}})/", folder)
+            if match:
+                date_folders.append(match.group(1))
+    
+    return sorted(date_folders)
 
 
 def get_quarter_for_date(date):
@@ -89,7 +97,7 @@ def avg_num_analysts_from_raw(raw_df, period_label_func, periods):
 
 
 def compare_eps_revenue(from_date=None, to_date=None, quarters=None, output_file=None, annual=False):
-    date_folders = get_date_folders(DATA_DIR)
+    date_folders = get_date_folders()
     if len(date_folders) < 2:
         logger.warning("Not enough daily folders to compare changes.")
         return None
@@ -98,30 +106,30 @@ def compare_eps_revenue(from_date=None, to_date=None, quarters=None, output_file
     latest = None
     prior = None
     if to_date:
-        to_path = DATA_DIR / "daily" / to_date
-        if to_path.exists():
-            latest = to_path
+        to_path = f"market_data/daily/{to_date}/"
+        if gcs_folder_exists(bucket_name, to_path):
+            latest = to_date
         else:
             latest = date_folders[-1]
-            logger.warning(f"to_date folder {to_date} not found, using latest available: {latest.name}")
+            logger.warning(f"to_date folder {to_date} not found, using latest available: {latest}")
     else:
         latest = date_folders[-1]
 
     if from_date:
-        from_path = DATA_DIR / "daily" / from_date
-        if from_path.exists():
-            prior = from_path
+        from_path = f"market_data/daily/{from_date}/"
+        if gcs_folder_exists(bucket_name, from_path):
+            prior = from_date
         else:
-            # Use the closest prior folder (before latest)
+            # Pick the closest available folder before latest
             prior_candidates = [d for d in date_folders if d != latest]
             if prior_candidates:
                 prior = prior_candidates[-1]
-                logger.warning(f"from_date folder {from_date} not found, using prior available: {prior.name}")
+                logger.warning(f"from_date folder {from_date} not found, using prior available: {prior}")
             else:
                 logger.warning("No prior folder available.")
                 return None
     else:
-        # Use default logic (weeks_apart)
+        # Auto pick prior date ~4 weeks before latest
         prior, _ = get_latest_and_prior_dates(date_folders)
         if prior is None:
             logger.warning("Could not determine prior date folder.")
