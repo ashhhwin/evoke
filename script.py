@@ -308,11 +308,29 @@ def run_daily_bulk_download(tickers: List[str]):
     
     df['date'] = date_str
     df["date"] = pd.to_datetime(df["date"])
-    df["Close_to_Close (%)"]=0.0
-    df["Close_to_Open (% from Prev Day Close)"]=0.0
+    #df["Close_to_Close (%)"]=0.0
+    #df["Close_to_Open (% from Prev Day Close)"]=0.0
     # Merge with previous day's close and volume
+    # ashwin making changes to fix previous close price
     # (skip prev_path.exists() logic for GCS version for now)
-
+    prev_day = get_previous_trading_day(today)
+    if prev_day:
+        prev_str = prev_day.isoformat()
+        prev_blob_path = gcs_path(f"daily/{prev_str}/EODHD/eod_us_{prev_str}_merged.csv")
+    try:
+        prev_df = read_csv_from_gcs(prev_blob_path)[["Symbol", "P_Close"]]
+        prev_df.rename(columns={"P_Close": "prev_close"}, inplace=True)
+        df = df.merge(prev_df, on="Symbol", how="left")
+        df["% Close to Close"] = ((df["close"] - df["prev_close"]) / df["prev_close"]) * 100
+        df["% Prev Close to Open"] = ((df["open"] - df["prev_close"]) / df["prev_close"]) * 100
+    except Exception as e:
+        log_progress(f"[WARNING] Failed to merge previous day data from GCS: {e}")
+        df["prev_close"] = pd.NA
+        df["% Close to Close"] = pd.NA
+        df["% Prev Close to Open"] = pd.NA
+        
+    
+    # end of ashwin changes
     # Intraday ratios
     df["High_Close(%)"] = (df["high"] - df["close"]) / df["close"] * 100
     df["Low_Close(%)"]  = (df["low"]  - df["close"]) / df["close"] * 100
