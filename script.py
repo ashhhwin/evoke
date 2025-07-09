@@ -321,7 +321,7 @@ def run_daily_bulk_download(tickers: List[str]):
         prev_df = read_csv_from_gcs(prev_blob_path)[["Symbol", "P_Close"]]
         prev_df.rename(columns={"P_Close": "prev_close"}, inplace=True)
         df = df.merge(prev_df, on="Symbol", how="left")
-        df["Close to Close (%)"] = ((df["close"] - df["prev_close"]) / df["prev_close"]) * 100
+        df["Close_to_Close (%)"] = ((df["close"] - df["prev_close"]) / df["prev_close"]) * 100
         df["Close_to_Open (% from Prev Day Close)"] = ((df["open"] - df["prev_close"]) / df["prev_close"]) * 100
     except Exception as e:
         log_progress(f"[WARNING] Failed to merge previous day data from GCS: {e}")
