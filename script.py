@@ -268,10 +268,10 @@ def run_finnhub_data_pipeline(tickers: List[str]):
 
 def run_daily_bulk_download(tickers: List[str]):
     
-    #date_str = "2025-07-03"
-    #today = datetime.strptime(date_str, "%Y-%m-%d").date()
-    today= date.today()
-    date_str = today.isoformat()
+    date_str = "2025-07-08"
+    today = datetime.strptime(date_str, "%Y-%m-%d").date()
+    #today= date.today()
+    #date_str = today.isoformat()
     nyse = mcal.get_calendar('NYSE')
     schedule = nyse.schedule(start_date=today, end_date=today)
     trading_days = schedule.index.date.tolist()
