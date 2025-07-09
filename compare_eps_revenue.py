@@ -198,14 +198,14 @@ def compare_eps_revenue(from_date=None, to_date=None, quarters=None, output_file
 
     df = pd.merge(
         df,
-        meta_df[['Symbol', 'Company_Name', 'Type', 'Sector', 'Industry', 'MarketCapitalization', 'Shares_Float']],
+        meta_df[['Symbol', 'Company_Name', 'Type', 'Sector', 'Industry', 'MarketCapitalization', 'Shares_Float', 'Earnings_Date']],
         left_on='ticker',
         right_on='Symbol',
         how='left'
     ).drop(columns='Symbol')
 
     # Reorder and sort
-    first_cols = ['ticker', 'Company_Name', 'Type', 'Sector', 'Industry', 'MarketCapitalization', 'Shares_Float']
+    first_cols = ['ticker', 'Company_Name', 'Type', 'Sector', 'Industry', 'MarketCapitalization', 'Shares_Float', 'Earnings_Date']
     other_cols = [col for col in df.columns if col not in first_cols]
     df = df[first_cols + other_cols]
     df = df.sort_values(by='MarketCapitalization', ascending=False)
@@ -213,7 +213,7 @@ def compare_eps_revenue(from_date=None, to_date=None, quarters=None, output_file
     # Keep only required columns
     final_cols = [
         'ticker', 'Company_Name', 'Type', 'Sector', 'Industry',
-        'MarketCapitalization', 'Shares_Float',
+        'MarketCapitalization', 'Shares_Float', 'Earnings_Date',
         'prev_revenue_millions', 'prev_eps',
         'new_revenue_millions', 'new_eps',
         'revenue_pct_change', 'eps_pct_change'
