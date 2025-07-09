@@ -268,10 +268,10 @@ def run_finnhub_data_pipeline(tickers: List[str]):
 
 def run_daily_bulk_download(tickers: List[str]):
     
-    date_str = "2025-07-08"
-    today = datetime.strptime(date_str, "%Y-%m-%d").date()
-    #today= date.today()
-    #date_str = today.isoformat()
+    #date_str = "2025-07-08"
+    #today = datetime.strptime(date_str, "%Y-%m-%d").date()
+    today= date.today()
+    date_str = today.isoformat()
     nyse = mcal.get_calendar('NYSE')
     schedule = nyse.schedule(start_date=today, end_date=today)
     trading_days = schedule.index.date.tolist()
@@ -321,8 +321,8 @@ def run_daily_bulk_download(tickers: List[str]):
         prev_df = read_csv_from_gcs(prev_blob_path)[["Symbol", "P_Close"]]
         prev_df.rename(columns={"P_Close": "prev_close"}, inplace=True)
         df = df.merge(prev_df, on="Symbol", how="left")
-        df["Close_to_Close (%)"] = ((df["close"] - df["prev_close"]) / df["prev_close"]) * 100
-        df["Close_to_Open (% from Prev Day Close)"] = ((df["open"] - df["prev_close"]) / df["prev_close"]) * 100
+        df["Close_to_Close (%)"] = (((df["close"] - df["prev_close"]) / df["prev_close"]) * 100).round(2)
+        df["Close_to_Open (% from Prev Day Close)"] = (((df["open"] - df["prev_close"]) / df["prev_close"]) * 100).round(2)
     except Exception as e:
         log_progress(f"[WARNING] Failed to merge previous day data from GCS: {e}")
         df["prev_close"] = pd.NA
@@ -332,9 +332,9 @@ def run_daily_bulk_download(tickers: List[str]):
     
     # end of ashwin changes
     # Intraday ratios
-    df["High_Close(%)"] = (df["high"] - df["close"]) / df["close"] * 100
-    df["Low_Close(%)"]  = (df["low"]  - df["close"]) / df["close"] * 100
-    df["Open_Close (%)"] = (df["close"] - df["open"]) / df["open"] * 100
+    df["High_Close(%)"] = ((df["high"] - df["close"]) / df["close"] * 100).round(2)
+    df["Low_Close(%)"]  = ((df["low"]  - df["close"]) / df["close"] * 100).round(2)
+    df["Open_Close (%)"] = ((df["close"] - df["open"]) / df["open"] * 100).round(2)
     
     # Fundamentals enrichment
     extra_rows = []
@@ -788,7 +788,7 @@ def load_master_tickers(path: str = None) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    tickers = load_tickers(limit=5)
+    tickers = load_tickers(limit=None)
     run_pipelines_concurrently(tickers)
     #run_daily_bulk_download(tickers)
     #detect_eps_revenue_changes()
