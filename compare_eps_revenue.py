@@ -232,20 +232,34 @@ def main():
     )
 
 
-def list_available_dates():
-    """Return a sorted list of available date folder names (YYYY-MM-DD)."""
-    return [d.name for d in get_date_folders(DATA_DIR)]
+def list_available_dates(bucket_name="historical_data_evoke") -> list:
+    """Return a sorted list of available date folder names (YYYY-MM-DD) from GCS under market_data/daily/."""
+    client = storage.Client()
+    blobs = client.list_blobs(bucket_name, prefix="market_data/daily/", delimiter=None)
+    folder_names = set()
+    pattern = re.compile(r"market_data/daily/(\d{4}-\d{2}-\d{2})/")
+    for blob in blobs:
+        match = pattern.match(blob.name)
+        if match:
+            folder_names.add(match.group(1))
+    return sorted(folder_names)
 
-def list_available_periods(date_folder):
-    """Return a list of available forecast periods (quarters or years) for a given date folder, from the transformed EPS file."""
-    path = DATA_DIR / "daily" / date_folder / "FINNHUB" / "transformed" / f"eps_transformed_{date_folder}.csv"
-    if not path.exists():
+
+def list_available_periods(date_folder, bucket_name="historical_data_evoke"):
+    """
+    Return a list of available forecast periods (quarters or years) for a given date folder,
+    by reading the transformed EPS file from GCS.
+    """
+    client = storage.Client()
+    blob_path = f"market_data/daily/{date_folder}/FINNHUB/transformed/eps_transformed_{date_folder}.csv"
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(blob_path)
+    if not blob.exists():
         return []
-    df = pd.read_csv(path)
-    # Only keep columns that are not ticker or api_run_date
+    content = blob.download_as_text()
+    df = pd.read_csv(io.StringIO(content))
     period_cols = [c for c in df.columns if c not in ["ticker", "api_run_date"]]
     return period_cols
-
 
 if __name__ == "__main__":
     main()
