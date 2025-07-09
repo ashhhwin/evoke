@@ -230,8 +230,8 @@ def compare_eps_revenue(from_date=None, to_date=None, quarters=None, output_file
                 destination_blob_path=f"market_data/revisions/{output_file}",
                 local_file_path=tmp_file.name
             )
-
-
+    gcs_path = f"market_data/revisions/{output_file}"
+    df = read_csv_from_gcs("historical_data_evoke", gcs_path)
     return df
 
 
