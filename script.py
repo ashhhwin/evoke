@@ -788,7 +788,7 @@ def load_master_tickers(path: str = None) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    tickers = load_tickers(limit=2)
+    tickers = load_tickers(limit=None)
     run_pipelines_concurrently(tickers)
     #run_daily_bulk_download(tickers)
     #detect_eps_revenue_changes()
