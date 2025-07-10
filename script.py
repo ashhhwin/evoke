@@ -202,7 +202,8 @@ def run_finnhub_data_pipeline(tickers: List[str]):
     raw_dir = f"daily/{today_iso}/FINNHUB/raw_data"
     tx_dir = f"daily/{today_iso}/FINNHUB/transformed"
     news_dir =f"news/{today_iso}"
-   
+    news_dir.mkdir(parents=True, exist_ok=True)
+    
     client = fb.Client(api_key=FINNHUB_API_KEY)
 
     funcs: Dict[str, Callable[[str], pd.DataFrame]] = {
@@ -220,11 +221,9 @@ def run_finnhub_data_pipeline(tickers: List[str]):
             try: 
                  df = fn(tk)
                  if name == "news_data":          
-                        news_path = Path(news_dir) / f"{tk}_{today_iso}.json"
-                        with open(news_path, "w") as f:
-                                json.dump(df, f, indent=2)
+                        json_str = json.dump(df, indent=2)
                         gcs_dest = gcs_path(f"{news_dir}/{tk}.json")
-                        upload_to_gcs("historical_data_evoke", gcs_dest, str(news_path))          
+                        upload_string_to_gcs("historical_data_evoke", gcs_dest, json_str)          
                  else:
                         if not df.empty:
                             df.insert(0, "ticker", tk)
