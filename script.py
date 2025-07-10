@@ -48,7 +48,7 @@ EOD_API_TOKEN = get_secret(GCP_PROJECT_ID, EODHD_SECRET_NAME)
 BASE_EOD_URL    = "https://eodhd.com/api/eod-bulk-last-day/US"
 URL_FUNDAMENTAL = "https://eodhd.com/api/fundamentals"
 DATA_DIR        = Path("market_data")
-RATE_LIMIT_SEC   = 0.8
+RATE_LIMIT_SEC   = 1
 
 
 start_date = date(2025, 1, 1)
