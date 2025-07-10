@@ -104,7 +104,7 @@ def run_finnhub_pipeline():
     try:
         log_progress("Running Finnhub pipeline...")
         try:
-            tickers = load_tickers()
+            tickers = load_tickers(limit=2)
         except Exception as e:
             log_progress(f"Finnhub pipeline failed: {e}")
             return f"Failed: {e}"
@@ -135,7 +135,7 @@ def run_eodhd_pipeline():
             return message  # <-- Return to Gradio
 
         try:
-            tickers = load_tickers()
+            tickers = load_tickers(limit=2)
         except Exception as e:
             log_progress(f"EODHD pipeline failed: {e}")
             return f"Failed: {e}"
