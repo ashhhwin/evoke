@@ -189,13 +189,13 @@ def get_finnhub_df(client, func: Callable, ticker: str, freq: str) -> pd.DataFra
         logger.error("Finnhub error %s / %s : %s", ticker, func.__name__, e)
         return pd.DataFrame()
         
-def get_finnhub_news(client, func: Callable, ticker: str, from_date: datetime, to_date: datetime ) -> pd.DataFrame:
+def get_finnhub_news(client, func: Callable, ticker: str, from_date: datetime, to_date: datetime )
     try:
         data = func(ticker,from_date,to_date) or {}
-        return pd.DataFrame(data.get("data", []))
+        return data
     except Exception as e:
         logger.error("Finnhub error %s / %s : %s", ticker, func.__name__, e)
-        return pd.DataFrame()
+        return {}
 
 def run_finnhub_data_pipeline(tickers: List[str]):
     today_iso = date.today().isoformat()
