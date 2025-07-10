@@ -188,13 +188,21 @@ def get_finnhub_df(client, func: Callable, ticker: str, freq: str) -> pd.DataFra
     except Exception as e:
         logger.error("Finnhub error %s / %s : %s", ticker, func.__name__, e)
         return pd.DataFrame()
-
+        
+def get_finnhub_news(client, func: Callable, ticker: str, from_date: datetime, to_date: datetime ) -> pd.DataFrame:
+    try:
+        data = func(ticker, from_date.strftime("%Y-%m-%d"),to_date.strftime("%Y-%m-%d")) or {}
+        return pd.DataFrame(data.get("data", []))
+    except Exception as e:
+        logger.error("Finnhub error %s / %s : %s", ticker, func.__name__, e)
+        return pd.DataFrame()
 
 def run_finnhub_data_pipeline(tickers: List[str]):
     today_iso = date.today().isoformat()
     raw_dir = f"daily/{today_iso}/FINNHUB/raw_data"
     tx_dir = f"daily/{today_iso}/FINNHUB/transformed"
-
+    news_dir =f"daily/{today_iso}/FINNHUB/news_data"
+    Path(news_dir).mkdir(parents=True, exist_ok= True)
     client = fb.Client(api_key=FINNHUB_API_KEY)
 
     funcs: Dict[str, Callable[[str], pd.DataFrame]] = {
@@ -202,22 +210,29 @@ def run_finnhub_data_pipeline(tickers: List[str]):
         "revenue_estimates_annual":    lambda t: get_finnhub_df(client, client.company_revenue_estimates, t, "annual"),
         "eps_estimates_quarterly":     lambda t: get_finnhub_df(client, client.company_eps_estimates,     t, "quarterly"),
         "eps_estimates_annual":        lambda t: get_finnhub_df(client, client.company_eps_estimates,     t, "annual"),
+        "news_data":                   lambda t: get_finnhub_news(client, client.company_news,t,today_iso,today_iso),
     }
 
-    collected: Dict[str, List[pd.DataFrame]] = {k: [] for k in funcs}
+    collected: Dict[str, List[pd.DataFrame]] = {k: [] for k in funcs if k != "news_data"}
     for i, tk in enumerate(tqdm(tickers, desc="Finnhub", unit="ticker")):
         log_progress(f"[{i+1}/{len(tickers)}] Fetching from Finnhub: {tk}")
         for name, fn in funcs.items():
-            try:
+            try:                        
                 df = fn(tk)
                 if not df.empty:
                     df.insert(0, "ticker", tk)
                     df.insert(1, "api_run_date", today_iso)
-                    collected[name].append(df)
+                    if name == "news_data":
+                        news_path = Path(news_dir) / f"{tk}_{today_iso}.json"
+                        df.to_json(news_path, orient="records", indent=2)
+                        gcs_dest = gcs_path(f"{news_dir}/{tk}_{today_iso}.json")
+                        upload_to_gcs("historical_data_evoke", gcs_dest, str(news_path))
+                    else:
+                        collected[name].append(df)
             except Exception as e:
                 log_progress(f"[{i+1}/{len(tickers)}] ERROR {name} for {tk}: {e}")
         time.sleep(RATE_LIMIT_SEC)
-
+    
     # Save raw CSVs to GCS
     for name, lst in collected.items():
         if lst:
