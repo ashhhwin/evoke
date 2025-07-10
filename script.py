@@ -221,7 +221,7 @@ def run_finnhub_data_pipeline(tickers: List[str]):
             try: 
                  df = fn(tk)
                  if name == "news_data":          
-                        json_str = json.dump(df, indent=2)
+                        json_str = json.dumps(df, indent=2)
                         gcs_dest = gcs_path(f"{news_dir}/{tk}.json")
                         upload_string_to_gcs("historical_data_evoke", gcs_dest, json_str)          
                  else:
