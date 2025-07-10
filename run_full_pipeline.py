@@ -16,12 +16,13 @@ from google.cloud import storage
 import io
 import os
 GCS_BUCKET = "historical_data_evoke" 
+
 PROGRESS_LOG = Path("market_data/progress.log")
 
 def log_progress(message: str):
     client = storage.Client()
     bucket = client.bucket(GCS_BUCKET)
-    blob = bucket.blob(PROGRESS_LOG)
+    blob = bucket.blob(str(PROGRESS_LOG))
     if blob.exists():
         current_log = blob.download_as_text()
     else:
