@@ -202,7 +202,7 @@ def run_finnhub_data_pipeline(tickers: List[str]):
     raw_dir = f"daily/{today_iso}/FINNHUB/raw_data"
     tx_dir = f"daily/{today_iso}/FINNHUB/transformed"
     news_dir =f"news/{today_iso}"
-    news_dir.mkdir(parents=True, exist_ok=True)
+    #Path(news_dir).mkdir(parents=True, exist_ok=True)
     
     client = fb.Client(api_key=FINNHUB_API_KEY)
 
