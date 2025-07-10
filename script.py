@@ -191,7 +191,7 @@ def get_finnhub_df(client, func: Callable, ticker: str, freq: str) -> pd.DataFra
         
 def get_finnhub_news(client, func: Callable, ticker: str, from_date: datetime, to_date: datetime ) -> pd.DataFrame:
     try:
-        data = func(ticker, from_date.strftime("%Y-%m-%d"),to_date.strftime("%Y-%m-%d")) or {}
+        data = func(ticker,from_date,to_date) or {}
         return pd.DataFrame(data.get("data", []))
     except Exception as e:
         logger.error("Finnhub error %s / %s : %s", ticker, func.__name__, e)
