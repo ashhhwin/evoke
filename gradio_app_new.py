@@ -133,7 +133,7 @@ def display_latest_ticker_snapshot(ticker: str):
 def run_both_pipelines():
     try:
         try:
-            tickers = load_tickers(limit=2)
+            tickers = load_tickers()
         except Exception as e:
             return f"Failed: {e}"
         run_pipelines_concurrently(tickers)
