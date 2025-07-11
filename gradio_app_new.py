@@ -349,7 +349,7 @@ def transform_to_wrkbook(df):
 
     return wb
 
-def generate_excel_from_comparison_csv(csv_path: str) -> str:
+def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     import os
     from google.cloud import storage
 
