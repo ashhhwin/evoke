@@ -28,6 +28,7 @@ import plotly.express as px
 import io
 import time
 from google.cloud import storage
+from datetime import datetime
 def read_csv_from_gcs(bucket_name, blob_path, max_retries=5, delay=2):
     """
     Read CSV from GCS with retry logic.
@@ -377,8 +378,8 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
 
 
 
-def run_comparison(from_date, to_date, period):
-    import plotly.express as px
+def run_comparison(from_date, to_date, period,month=None):
+    #added month=None
 
     safe_period = str(period).replace(' ', '').replace('/', '').replace('\\', '').replace(':', '')
     output_file = f"eps_revenue_comparison_{from_date}_to_{to_date}_for_{safe_period}.csv"
@@ -389,13 +390,36 @@ def run_comparison(from_date, to_date, period):
     #time.sleep(20)
     df = read_csv_from_gcs('historical_data_evoke', gcs_path)
     #df = read_csv_from_gcs('historical_data_evoke',f'market_data/revisions/{output_file}')
+    
     if df is None or df.empty:
         return None, "No data found for the selected options.", "", "", "", "", ""
-
+    
     df['eps_pct_change'] = pd.to_numeric(df['eps_pct_change'], errors='coerce')
     df['revenue_pct_change'] = pd.to_numeric(df['revenue_pct_change'], errors='coerce')
     df['MarketCapitalization'] = pd.to_numeric(df['MarketCapitalization'], errors='coerce')
+    df['Earnings_Date'] = pd.to_datetime(df['Earnings_Date'], errors='coerce')
 
+    if month:
+        try:
+            month_num = datetime.strptime(month, "%B").month
+            df = df[df['Earnings_Date'].dt.month == month_num]
+        except ValueError:
+            pass 
+            
+    df = df.rename(columns={
+    'ticker': 'Symbol',
+    'Company_Name': 'Name',
+    'MarketCapitalization': 'Mkt. Cap',
+    'Shares_Float': 'Float',
+    'Earnings_Date': 'Earnings Date',
+    'prev_revenue_millions': 'Prev Revenue',
+    'prev_eps': 'Prev EPS',
+    'new_revenue_millions': 'New Revenue',
+    'new_eps': 'New EPS',
+    'revenue_pct_change': '% Revenue',
+    'eps_pct_change': '% EPS'
+    })
+    
     def categorize_market_cap(cap):
         if pd.isna(cap): return "Unknown"
         if cap >= 200000: return "Mega Cap"
@@ -405,8 +429,8 @@ def run_comparison(from_date, to_date, period):
         elif cap >= 50: return "Micro Cap"
         else: return "Nano Cap"
 
-    df['MarketCapCategory'] = df['MarketCapitalization'].apply(categorize_market_cap)
-    df = df[df['Sector'].notna() & df['Industry'].notna() & df['eps_pct_change'].notna() & df['revenue_pct_change'].notna()]
+    df['MarketCapCategory'] = df['Mkt. Cap'].apply(categorize_market_cap)
+    df = df[df['Sector'].notna() & df['Industry'].notna() & df['% EPS'].notna() & df['% Revenue'].notna()]
     df['count'] = 1
 
     color_scale = [
@@ -414,15 +438,15 @@ def run_comparison(from_date, to_date, period):
         [0.5, "white"], [0.75, "green"], [1.0, "blue"]
     ]
 
-    eps_grouped = df.groupby(['Sector', 'Industry']).agg({'eps_pct_change': 'mean', 'count': 'sum'}).reset_index()
+    eps_grouped = df.groupby(['Sector', 'Industry']).agg({'% EPS': 'mean', 'count': 'sum'}).reset_index()
     fig_eps = px.treemap(
         eps_grouped,
         path=['Sector', 'Industry'],
         values='count',
-        color='eps_pct_change',
+        color='% EPS',
         color_continuous_scale=color_scale,
         color_continuous_midpoint=0,
-        custom_data=['eps_pct_change'],
+        custom_data=['% EPS'],
         title='EPS % Change: Sector → Industry'
     )
     fig_eps.update_traces(
@@ -432,15 +456,15 @@ def run_comparison(from_date, to_date, period):
     )
     eps_plot = fig_eps
 
-    rev_grouped = df.groupby(['Sector', 'Industry']).agg({'revenue_pct_change': 'mean', 'count': 'sum'}).reset_index()
+    rev_grouped = df.groupby(['Sector', 'Industry']).agg({'% Revenue': 'mean', 'count': 'sum'}).reset_index()
     fig_rev = px.treemap(
         rev_grouped,
         path=['Sector', 'Industry'],
         values='count',
-        color='revenue_pct_change',
+        color='% Revenue',
         color_continuous_scale=color_scale,
         color_continuous_midpoint=0,
-        custom_data=['revenue_pct_change'],
+        custom_data=['% Revenue'],
         title='Revenue % Change: Sector → Industry'
     )
     fig_rev.update_traces(
@@ -449,11 +473,12 @@ def run_comparison(from_date, to_date, period):
         textposition='middle center'
     )
     rev_plot = fig_rev
-    top_eps_up = df.nlargest(10, 'eps_pct_change')[['ticker', 'Company_Name', 'eps_pct_change']]
-    top_eps_down = df.nsmallest(10, 'eps_pct_change')[['ticker', 'Company_Name', 'eps_pct_change']]
-    top_rev_up = df.nlargest(10, 'revenue_pct_change')[['ticker', 'Company_Name', 'revenue_pct_change']]
-    top_rev_down = df.nsmallest(10, 'revenue_pct_change')[['ticker', 'Company_Name', 'revenue_pct_change']]
+    top_eps_up = df.nlargest(10, '% EPS')[['ticker', 'Company_Name', 'Prev EPS',' New EPS','% EPS']]
+    top_eps_down = df.nsmallest(10, '% EPS')[['ticker', 'Company_Name', 'Prev EPS',' New EPS', '% EPS']]
+    top_rev_up = df.nlargest(10, '% Revenue')[['ticker', 'Company_Name','Prev Revenue','New Revenue', '% Revenue']]
+    top_rev_down = df.nsmallest(10, '% Revenue')[['ticker', 'Company_Name', 'Prev Revenue','New Revenue', '% Revenue']]
 
+    '''
     eps_movers_table = (
         "<h4>Top EPS Up</h4>" + top_eps_up.to_html(index=False, escape=False) +
         "<h4>Top EPS Down</h4>" + top_eps_down.to_html(index=False, escape=False)
@@ -462,6 +487,33 @@ def run_comparison(from_date, to_date, period):
         "<h4>Top Revenue Up</h4>" + top_rev_up.to_html(index=False, escape=False) +
         "<h4>Top Revenue Down</h4>" + top_rev_down.to_html(index=False, escape=False)
     )
+    '''
+    # Side-by-side EPS movers table
+    eps_movers_table = f"""
+    <div style='display: flex; gap: 40px; justify-content: space-between;'>
+      <div style='flex: 1'>
+        <h4>Top EPS Up</h4>
+        {top_eps_up.to_html(index=False, escape=False)}
+      </div>
+      <div style='flex: 1'>
+        <h4>Top EPS Down</h4>
+        {top_eps_down.to_html(index=False, escape=False)}
+      </div>
+    </div>
+    """
+    rev_movers_table = f"""
+    <div style='display: flex; gap: 40px; justify-content: space-between;'>
+      <div style='flex: 1'>
+        <h4>Top Revenue Up</h4>
+        {top_rev_up.to_html(index=False, escape=False)}
+      </div>
+      <div style='flex: 1'>
+        <h4>Top Revenue Down</h4>
+        {top_rev_down.to_html(index=False, escape=False)}
+      </div>
+    </div>
+    """
+    
 
     summary = {
         'EPS Up': int((df['eps_pct_change'] > 0).sum()),
@@ -680,10 +732,12 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         rev_treemap_plot = gr.Plot(label="Revenue Treemap")
 
         gr.Markdown("### Top EPS Movers")
-        eps_movers_table = gr.HTML()
-
+        #eps_movers_table = gr.HTML()
+        gr.HTML(eps_movers_table)
+        
         gr.Markdown("### Top Revenue Movers")
-        rev_movers_table = gr.HTML()
+        #rev_movers_table = gr.HTML()
+        gr.HTML(rev_movers_table)
 
         gr.Markdown("### Summary of Revisions")
         summary_box = gr.Textbox(lines=8, interactive=False)
