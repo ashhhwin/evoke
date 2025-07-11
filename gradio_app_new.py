@@ -473,10 +473,10 @@ def run_comparison(from_date, to_date, period,month=None):
         textposition='middle center'
     )
     rev_plot = fig_rev
-    top_eps_up = df.nlargest(10, '% EPS')[['ticker', 'Company_Name', 'Prev EPS',' New EPS','% EPS']]
-    top_eps_down = df.nsmallest(10, '% EPS')[['ticker', 'Company_Name', 'Prev EPS',' New EPS', '% EPS']]
-    top_rev_up = df.nlargest(10, '% Revenue')[['ticker', 'Company_Name','Prev Revenue','New Revenue', '% Revenue']]
-    top_rev_down = df.nsmallest(10, '% Revenue')[['ticker', 'Company_Name', 'Prev Revenue','New Revenue', '% Revenue']]
+    top_eps_up = df.nlargest(10, '% EPS')[['Symbol', 'Name', 'Prev EPS',' New EPS','% EPS']]
+    top_eps_down = df.nsmallest(10, '% EPS')[['Symbol', 'Name', 'Prev EPS',' New EPS', '% EPS']]
+    top_rev_up = df.nlargest(10, '% Revenue')[['Symbol', 'Name','Prev Revenue','New Revenue', '% Revenue']]
+    top_rev_down = df.nsmallest(10, '% Revenue')[['Symbol', 'Name', 'Prev Revenue','New Revenue', '% Revenue']]
 
     '''
     eps_movers_table = (
@@ -489,30 +489,8 @@ def run_comparison(from_date, to_date, period,month=None):
     )
     '''
     # Side-by-side EPS movers table
-    eps_movers_table = f"""
-    <div style='display: flex; gap: 40px; justify-content: space-between;'>
-      <div style='flex: 1'>
-        <h4>Top EPS Up</h4>
-        {top_eps_up.to_html(index=False, escape=False)}
-      </div>
-      <div style='flex: 1'>
-        <h4>Top EPS Down</h4>
-        {top_eps_down.to_html(index=False, escape=False)}
-      </div>
-    </div>
-    """
-    rev_movers_table = f"""
-    <div style='display: flex; gap: 40px; justify-content: space-between;'>
-      <div style='flex: 1'>
-        <h4>Top Revenue Up</h4>
-        {top_rev_up.to_html(index=False, escape=False)}
-      </div>
-      <div style='flex: 1'>
-        <h4>Top Revenue Down</h4>
-        {top_rev_down.to_html(index=False, escape=False)}
-      </div>
-    </div>
-    """
+    eps_movers_table = f"<div style='display: flex; gap: 40px; justify-content: space-between;'><div style='flex: 1'><h4>Top EPS Up</h4>{top_eps_up.to_html(index=False, escape=False)}</div><div style='flex: 1'><h4>Top EPS Down</h4>{top_eps_down.to_html(index=False, escape=False)}</div></div>"
+    rev_movers_table = f"<div style='display: flex; gap: 40px; justify-content: space-between;'><div style='flex: 1'><h4>Top Revenue Up</h4>{top_rev_up.to_html(index=False, escape=False)}</div><div style='flex: 1'><h4>Top Revenue Down</h4>{top_rev_down.to_html(index=False, escape=False)}</div></div>"
     
 
     summary = {
