@@ -346,7 +346,7 @@ def load_news_from_gcs(date_str, ticker, bucket_name="historical_data_evoke"):
     """
     Load news JSON from GCS for a given date and ticker.
     """
-    blob_path = f"news/{date_str}/{ticker.upper()}.json"
+    blob_path = f"market_data/news/{date_str}/{ticker.upper()}.json"
     print(blob_path)
     try:
         client = storage.Client()
