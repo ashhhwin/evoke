@@ -399,7 +399,7 @@ def run_comparison(from_date, to_date, period,month=None):
     df['MarketCapitalization'] = pd.to_numeric(df['MarketCapitalization'], errors='coerce')
     df['Earnings_Date'] = pd.to_datetime(df['Earnings_Date'], errors='coerce')
 
-    if month:
+    if month and month != "All":
         try:
             month_num = datetime.strptime(month, "%B").month
             df = df[df['Earnings_Date'].dt.month == month_num]
@@ -701,7 +701,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             to_date = gr.Dropdown(label="To Date", choices=dates, value=latest)
         period = gr.Dropdown(label="Period", choices=get_periods_for_date(latest), value=get_periods_for_date(latest))
         months = [datetime(2000, m, 1).strftime("%B") for m in range(1, 13)]
-        month_dropdown = gr.Dropdown(label="Filter by Earnings Month", choices=months, value=None, allow_none=True)
+        month_dropdown = gr.Dropdown(label="Filter by Earnings Month", choices=['ALL']+months, value="ALL")
         run_comparison_btn = gr.Button("Run Comparison")
         #output_file = gr.File(label="Download CSV", visible=False)
         status = gr.Textbox(label="Status", interactive=False)
