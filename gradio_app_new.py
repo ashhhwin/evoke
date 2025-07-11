@@ -350,6 +350,21 @@ def transform_to_wrkbook(df):
     return wb
 
 def generate_excel_from_comparison_csv(csv_path: str) -> str:
+    import os
+    from google.cloud import storage
+
+    bucket = "historical_data_evoke"
+    gcs_path = f"market_data/revisions/{csv_filename}"
+    local_csv_path = f"/tmp/{csv_filename}"
+
+    client = storage.Client()
+    blob = client.bucket(bucket).blob(gcs_path)
+
+    if not blob.exists():
+        raise FileNotFoundError(f"GCS file not found: {gcs_path}")
+
+    # Download to local temp file
+    blob.download_to_filename(local_csv_path)
     df = load_df(csv_path)
     wb = transform_to_wrkbook(df)
     excel_path = csv_path.replace(".csv", ".xlsx")
