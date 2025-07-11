@@ -494,10 +494,10 @@ def run_comparison(from_date, to_date, period,month=None):
     
 
     summary = {
-        'EPS Up': int((df['eps_pct_change'] > 0).sum()),
-        'EPS Down': int((df['eps_pct_change'] < 0).sum()),
-        'Revenue Up': int((df['revenue_pct_change'] > 0).sum()),
-        'Revenue Down': int((df['revenue_pct_change'] < 0).sum()),
+        'EPS Up': int((df['% EPS'] > 0).sum()),
+        'EPS Down': int((df['% EPS'] < 0).sum()),
+        'Revenue Up': int((df['% Revenue'] > 0).sum()),
+        'Revenue Down': int((df['% Revenue'] < 0).sum()),
     }
     summary_text = " \
     ".join(f"{k}: {v}" for k, v in summary.items())
