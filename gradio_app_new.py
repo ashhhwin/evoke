@@ -700,6 +700,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             from_date = gr.Dropdown(label="From Date", choices=dates, value=prior)
             to_date = gr.Dropdown(label="To Date", choices=dates, value=latest)
         period = gr.Dropdown(label="Period", choices=get_periods_for_date(latest), value=get_periods_for_date(latest))
+        months = [datetime(2000, m, 1).strftime("%B") for m in range(1, 13)]
+        month_dropdown = gr.Dropdown(label="Filter by Earnings Month", choices=months, value=None, allow_none=True)
         run_comparison_btn = gr.Button("Run Comparison")
         #output_file = gr.File(label="Download CSV", visible=False)
         status = gr.Textbox(label="Status", interactive=False)
@@ -710,12 +712,12 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         rev_treemap_plot = gr.Plot(label="Revenue Treemap")
 
         gr.Markdown("### Top EPS Movers")
-        #eps_movers_table = gr.HTML()
-        gr.HTML(eps_movers_table)
+        eps_movers_table = gr.HTML()
+        #gr.HTML(eps_movers_table)
         
         gr.Markdown("### Top Revenue Movers")
-        #rev_movers_table = gr.HTML()
-        gr.HTML(rev_movers_table)
+        rev_movers_table = gr.HTML()
+        #gr.HTML(rev_movers_table)
 
         gr.Markdown("### Summary of Revisions")
         summary_box = gr.Textbox(lines=8, interactive=False)
@@ -726,7 +728,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
         run_comparison_btn.click(
             fn=run_comparison,
-            inputs=[from_date, to_date, period],
+            inputs=[from_date, to_date, period, month_dropdown],
             outputs=[ status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box, excel_download]
         )
 
