@@ -1,3 +1,4 @@
+openpyxl
 pandas
 pandas_market_calendars
 finnhub-python
