@@ -343,12 +343,16 @@ def download_csv(file_path):
 
 ##ashwin changes start here
 
+def load_news_from_gcs(date_str, ticker, keyword="", bucket_name="historical_data_evoke"):
+    """
+    Load and format news JSON into uniform HTML cards with optional keyword search.
+    """
+    import json
+    import datetime
+    from google.cloud import storage
 
-def load_news_from_gcs(date_str, ticker, bucket_name="historical_data_evoke"):
-    """
-    Load and format news JSON into Bloomberg-style clickable HTML cards.
-    """
     blob_path = f"market_data/news/{date_str}/{ticker.upper()}.json"
+
     try:
         client = storage.Client()
         bucket = client.bucket(bucket_name)
@@ -363,10 +367,11 @@ def load_news_from_gcs(date_str, ticker, bucket_name="historical_data_evoke"):
         if not isinstance(articles, list) or not articles:
             return "<div>No valid news entries.</div>"
 
-        # Begin scrollable container and grid layout
+        keyword = keyword.strip().lower()
+
         html = """
         <div style='max-height:800px; overflow-y:auto; padding-right:10px;'>
-            <div style='display: flex; flex-wrap: wrap; gap: 20px;'>
+            <div style='display: flex; flex-wrap: wrap; gap: 20px; justify-content: flex-start;'>
         """
 
         for article in articles:
@@ -378,30 +383,39 @@ def load_news_from_gcs(date_str, ticker, bucket_name="historical_data_evoke"):
             image = article.get("image", "")
             time_str = datetime.datetime.fromtimestamp(timestamp).strftime('%b %d, %Y – %H:%M') if timestamp else "N/A"
 
-            image_html = f"<img src='{image}' style='margin-top:10px; max-width:100%; border-radius:4px;'/>" if image else ""
+            # Keyword filter
+            if keyword and keyword not in headline.lower() and keyword not in summary.lower():
+                continue
+
+            image_html = f"<img src='{image}' style='width:100%; height:auto; max-height:140px; border-radius:4px; object-fit:cover;'/>" if image else ""
 
             card = (
-                f"<a href='{url}' target='_blank' style='text-decoration: none; flex: 1 1 45%; min-width: 350px; max-width: 48%;'>"
-                f"<div style='background-color:#1e1e1e; padding:15px; border-radius:6px; color:white; font-family:Arial, sans-serif; "
+                f"<a href='{url}' target='_blank' style='text-decoration: none; flex: 1 1 45%; min-width: 300px; max-width: 48%;'>"
+                f"<div style='background-color:#1e1e1e; height: 340px; display: flex; flex-direction: column; justify-content: space-between; "
+                f"padding:15px; border-radius:6px; color:white; font-family:Arial, sans-serif; overflow: hidden; "
                 f"transition: background-color 0.3s ease; cursor: pointer;' "
                 f"onmouseover=\"this.style.backgroundColor='#2c2c2c';\" "
                 f"onmouseout=\"this.style.backgroundColor='#1e1e1e';\">"
 
-                f"<h3 style='margin-bottom:8px; font-size:1.15em; line-height:1.4;'>{headline}</h3>"
-                f"<p style='margin:4px 0; font-size:0.85em; color:#aaa;'>🕒 {time_str} | 📢 {source}</p>"
-                f"<p style='margin-top:10px; font-size:0.95em; line-height:1.5; color:#ddd;'>{summary}</p>"
-                f"{image_html}"
+                f"<div>"
+                f"<h3 style='margin-bottom:8px; font-size:1.1em; line-height:1.4; height:48px; overflow:hidden; text-overflow:ellipsis;'>{headline}</h3>"
+                f"<p style='margin:4px 0; font-size:0.8em; color:#aaa;'>🕒 {time_str} | 📢 {source}</p>"
+                f"<p style='margin-top:10px; font-size:0.95em; line-height:1.5; color:#ddd; height:72px; overflow:hidden; text-overflow:ellipsis;'>{summary}</p>"
+                f"</div>"
 
+                f"{image_html}"
                 f"</div></a>"
             )
 
             html += card
 
-        html += "</div></div>"  # close flex grid + scroll container
-        return html
+        html += "</div></div>"
+
+        return html if html.strip() != "" else "<div>No matching articles found.</div>"
 
     except Exception as e:
         return f"<div style='color:red;'>Error loading news: {e}</div>"
+
 
 ## ashwin changes end here
 
@@ -531,18 +545,20 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 ## ashwin changes start here
 
     with gr.Tab("Market News by Ticker"):
-        gr.Markdown("## View Market News by Ticker and Date")
+        gr.Markdown("## 📰 Market News by Ticker and Date")
     
         with gr.Row():
             news_date = gr.Dropdown(label="Select Date", choices=dates, value=latest)
             news_ticker = gr.Dropdown(label="Select Ticker", choices=get_ticker_list(), value=None)
+    
+        search_input = gr.Textbox(label="Search Headline or Summary", placeholder="Type to filter...", lines=1)
     
         load_news_btn = gr.Button("Load News")
         news_output = gr.HTML(label="News Feed")
     
         load_news_btn.click(
             fn=load_news_from_gcs,
-            inputs=[news_date, news_ticker],
+            inputs=[news_date, news_ticker, search_input],
             outputs=news_output
         )
 
