@@ -264,9 +264,9 @@ def transform_to_wrkbook(df):
 
     display_headers = (
         base_headers +
-        [""] + ["Revenue", "EPS"] +   # for 4 Weeks Ago
-        [""] + ["Revenue", "EPS"] +   # for Present
-        [""] + ["Revenue", "EPS"]     # for % Change
+        [""] + ["Revenue", "EPS"] +
+        [""] + ["Revenue", "EPS"] +
+        [""] + ["Revenue", "EPS"]
     )
 
     wb = Workbook()
@@ -320,23 +320,28 @@ def transform_to_wrkbook(df):
                 cell.value = None
             else:
                 value = row[data_idx]
-                cell.value = value
                 data_idx += 1
 
+                # Format logic
+                cell.value = value
                 if header == "Mkt. Cap":
                     cell.number_format = '"$"#,##0.00'
                 elif header == "Float":
                     cell.number_format = '0'
-                elif "Revenue" in header:
+                elif "Revenue" in header and "%" not in header:
                     cell.number_format = '"$"#,##0'
-                elif "EPS" in header:
-                    cell.number_format = '"$"#,##0'
+                elif "EPS" in header and "%" not in header:
+                    cell.number_format = '"$"#,##0.00'
+                elif header in ["% Revenue", "% EPS"]:
+                    cell.number_format = '0.0%'
+                    if isinstance(cell.value, (int, float)):
+                        cell.value = cell.value / 100  # Convert 8.3 to 0.083
 
             cell.alignment = center_align
             cell.border = thin_border
 
-    max_col = ws.max_column
-    for col in range(1, max_col + 1):
+    # Style any remaining empty merged header cells
+    for col in range(1, ws.max_column + 1):
         cell = ws.cell(row=1, column=col)
         if cell.value is None:
             cell.fill = light_gray_fill
@@ -348,6 +353,7 @@ def transform_to_wrkbook(df):
         max_len = max(len(str(cell.value)) if cell.value else 0 for cell in col)
         ws.column_dimensions[get_column_letter(col[0].column)].width = max_len + 2
 
+    #wb.save("market_data_revisions_eps_revenue_comparison_2025-06-17_to_2025-07-10_for_Q3-25ashwinram.xlsx")
     return wb
 
 def generate_excel_from_comparison_csv(csv_filename: str) -> str:
