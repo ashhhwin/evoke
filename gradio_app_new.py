@@ -1,3 +1,6 @@
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
 import json
 import time
 import gradio as gr
@@ -224,6 +227,139 @@ def plot_close_price_history(ticker: str):
             go.Figure(layout_title_text=f"Error: {e}"),
             go.Figure(layout_title_text=f"No volume data available: {e}")
         )
+## ashwin changes start here for excel workbook
+
+def load_df(filepath):
+    df = pd.read_csv(filepath, keep_default_na=False, na_values=[""," "])
+    df = df.rename(columns={
+    'ticker': 'Symbol',
+    'Company_Name': 'Name',
+    'MarketCapitalization': 'Mkt. Cap',
+    'Shares_Float': 'Float',
+    'Earnings_Date': 'Earnings Date',
+    'prev_revenue_millions': 'Prev Revenue',
+    'prev_eps': 'Prev EPS',
+    'new_revenue_millions': 'New Revenue',
+    'new_eps': 'New EPS',
+    'revenue_pct_change': '% Revenue',
+    'eps_pct_change': '% EPS'
+    })
+    return df
+
+def transform_to_wrkbook(df):
+    base_headers = ["Symbol", "Name", "Type", "Sector", "Industry", "Mkt. Cap", "Float", "Earnings Date"]
+    group_data = ["4W Revenue", "4W EPS", "Now Revenue", "Now EPS", "% Revenue", "% EPS"]
+    all_headers = base_headers + group_data
+
+    insert_after = ["Earnings Date", "4W EPS", "Now EPS"]
+    blank_col_indices = []
+
+    for after_col in insert_after:
+        idx = all_headers.index(after_col) + 1
+        all_headers.insert(idx, "")
+        blank_col_indices.append(idx)
+
+    full_headers = all_headers.copy()
+
+    display_headers = (
+        base_headers +
+        [""] + ["Revenue", "EPS"] +   # for 4 Weeks Ago
+        [""] + ["Revenue", "EPS"] +   # for Present
+        [""] + ["Revenue", "EPS"]     # for % Change
+    )
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Earnings Data"
+
+    center_align = Alignment(horizontal="center", vertical="center")
+    bold_yellow_font = Font(bold=True, color="FFFF00")
+    light_gray_fill = PatternFill("solid", fgColor="999999")
+    dark_gray_fill = PatternFill("solid", fgColor="999999")
+    thin_border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+
+    group_col_map = {
+        "4 Weeks Ago": ("4W Revenue", "4W EPS"),
+        "Present": ("Now Revenue", "Now EPS"),
+        "% Change": ("% Revenue", "% EPS")
+    }
+
+    def get_column_index(name):
+        if name not in full_headers:
+            raise ValueError(f"Column '{name}' not found in headers")
+        return full_headers.index(name) + 1
+
+    for group_name, (start_col_name, end_col_name) in group_col_map.items():
+        col_start = get_column_index(start_col_name)
+        col_end = get_column_index(end_col_name)
+        ws.merge_cells(start_row=1, start_column=col_start, end_row=1, end_column=col_end)
+        cell = ws.cell(row=1, column=col_start, value=group_name)
+        cell.alignment = center_align
+        cell.font = bold_yellow_font
+        cell.fill = light_gray_fill
+        cell.border = thin_border
+
+    for col_idx, header in enumerate(display_headers, start=1):
+        cell = ws.cell(row=2, column=col_idx, value=header)
+        cell.alignment = center_align
+        cell.font = bold_yellow_font
+        cell.fill = light_gray_fill
+        cell.border = thin_border
+
+    for row_idx, row in enumerate(df.itertuples(index=False), start=3):
+        data_idx = 0
+        for col_idx, header in enumerate(full_headers, start=1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+
+            if header == "":
+                cell.fill = dark_gray_fill
+                cell.value = None
+            else:
+                value = row[data_idx]
+                cell.value = value
+                data_idx += 1
+
+                if header == "Mkt. Cap":
+                    cell.number_format = '"$"#,##0.00'
+                elif header == "Float":
+                    cell.number_format = '0'
+                elif "Revenue" in header:
+                    cell.number_format = '"$"#,##0'
+                elif "EPS" in header:
+                    cell.number_format = '"$"#,##0'
+
+            cell.alignment = center_align
+            cell.border = thin_border
+
+    max_col = ws.max_column
+    for col in range(1, max_col + 1):
+        cell = ws.cell(row=1, column=col)
+        if cell.value is None:
+            cell.fill = light_gray_fill
+        cell.alignment = center_align
+        cell.font = bold_yellow_font
+        cell.border = thin_border
+
+    for col in ws.columns:
+        max_len = max(len(str(cell.value)) if cell.value else 0 for cell in col)
+        ws.column_dimensions[get_column_letter(col[0].column)].width = max_len + 2
+
+    return wb
+
+def generate_excel_from_comparison_csv(csv_path: str) -> str:
+    df = load_df(csv_path)
+    wb = transform_to_wrkbook(df)
+    excel_path = csv_path.replace(".csv", ".xlsx")
+    wb.save(excel_path)
+    return excel_path
+
+
+
+## ashwin changes end here for excel workbook
+
 
 
 def run_comparison(from_date, to_date, period):
@@ -321,7 +457,10 @@ def run_comparison(from_date, to_date, period):
     summary_text = " \
     ".join(f"{k}: {v}" for k, v in summary.items())
 
-    return "Comparison and insights complete.", eps_plot, rev_plot, eps_movers_table, rev_movers_table, summary_text
+    ## ashwin change
+    excel_path = generate_excel_from_comparison_csv(output_file)
+
+    return "Comparison and insights complete.", eps_plot, rev_plot, eps_movers_table, rev_movers_table, summary_text, excel_path
 
 
 # Dates & Periods
@@ -536,10 +675,12 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
         to_date.change(fn=update_periods, inputs=[to_date], outputs=period)
 
+        excel_download = gr.File(label="Download Excel Workbook", interactive=False)
+
         run_comparison_btn.click(
             fn=run_comparison,
             inputs=[from_date, to_date, period],
-            outputs=[ status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box]
+            outputs=[ status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box, excel_download]
         )
 
 ## ashwin changes start here
