@@ -340,6 +340,33 @@ def download_csv(file_path):
     return file_path
 
 
+#ashwin changes start here
+
+def load_news_from_gcs(date_str, ticker, bucket_name="historical_data_evoke"):
+    """
+    Load news JSON from GCS for a given date and ticker.
+    """
+    blob_path = f"news/{date_str}/{ticker.upper()}.json"
+    try:
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_path)
+
+        if not blob.exists():
+            return f"No news found for {ticker} on {date_str}."
+
+        content = blob.download_as_text()
+        data = json.loads(content)
+
+        # Pretty print the JSON (you can format this better if needed)
+        pretty_output = json.dumps(data, indent=4)
+        return pretty_output
+
+    except Exception as e:
+        return f"Error reading news for {ticker} on {date_str}: {e}"
+
+
+## ashwin changes end here
 
 with gr.Blocks(theme=gr.themes.Soft()) as app:
     gr.Markdown("<h1 style='text-align:center; color:#00ff9d;'>📈 Market Data Dashboard</h1>")
@@ -463,5 +490,25 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             inputs=[from_date, to_date, period],
             outputs=[ status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box]
         )
+
+## ashwin changes start here
+
+    with gr.Tab("Market News by Ticker"):
+        gr.Markdown("## View Market News by Ticker and Date")
+    
+        with gr.Row():
+            news_date = gr.Dropdown(label="Select Date", choices=dates, value=latest)
+            news_ticker = gr.Dropdown(label="Select Ticker", choices=get_ticker_list(), value=None)
+    
+        load_news_btn = gr.Button("Load News")
+        news_output = gr.Code(label="News JSON", language="json", lines=20)
+    
+        load_news_btn.click(
+            fn=load_news_from_gcs,
+            inputs=[news_date, news_ticker],
+            outputs=news_output
+        )
+
+##ashwin changes end here
 
 app.launch(server_name="0.0.0.0", server_port=7860)
