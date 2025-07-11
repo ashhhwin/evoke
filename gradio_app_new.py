@@ -365,7 +365,7 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
 
     # Download to local temp file
     blob.download_to_filename(local_csv_path)
-    df = load_df(csv_path)
+    df = load_df(local_csv_path)
     wb = transform_to_wrkbook(df)
     excel_path = csv_path.replace(".csv", ".xlsx")
     wb.save(excel_path)
