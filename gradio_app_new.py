@@ -341,15 +341,12 @@ def download_csv(file_path):
     return file_path
 
 
-#ashwin changes start here
+##ashwin changes start here
 
-import json
-import datetime
-from google.cloud import storage
 
 def load_news_from_gcs(date_str, ticker, bucket_name="historical_data_evoke"):
     """
-    Load and format news JSON into Bloomberg-style HTML cards.
+    Load and format news JSON into Bloomberg-style clickable HTML cards.
     """
     blob_path = f"market_data/news/{date_str}/{ticker.upper()}.json"
     try:
@@ -366,7 +363,12 @@ def load_news_from_gcs(date_str, ticker, bucket_name="historical_data_evoke"):
         if not isinstance(articles, list) or not articles:
             return "<div>No valid news entries.</div>"
 
-        html = ""
+        # Begin scrollable container and grid layout
+        html = """
+        <div style='max-height:800px; overflow-y:auto; padding-right:10px;'>
+            <div style='display: flex; flex-wrap: wrap; gap: 20px;'>
+        """
+
         for article in articles:
             headline = article.get("headline", "No headline")
             summary = article.get("summary", "No summary available.")
@@ -374,27 +376,32 @@ def load_news_from_gcs(date_str, ticker, bucket_name="historical_data_evoke"):
             url = article.get("url", "#")
             timestamp = article.get("datetime", None)
             image = article.get("image", "")
-            time_str = datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M') if timestamp else "N/A"
+            time_str = datetime.datetime.fromtimestamp(timestamp).strftime('%b %d, %Y – %H:%M') if timestamp else "N/A"
 
-            image_html = f"<img src='{image}' style='margin-top:10px; max-width:200px; border-radius:4px;'/>" if image else ""
+            image_html = f"<img src='{image}' style='margin-top:10px; max-width:100%; border-radius:4px;'/>" if image else ""
 
             card = (
-                f"<div style='border-left: 5px solid #00ff9d; background-color:#1e1e1e; padding:15px; margin:10px 0; "
-                f"border-radius:6px; color:white; font-family:Arial, sans-serif;'>"
-                f"<h3 style='margin-bottom:5px;'><a href='{url}' target='_blank' style='color:#00baff; text-decoration:none;'>{headline}</a></h3>"
-                f"<p style='margin:4px 0; font-size:0.9em; color:#aaa;'>🕒 {time_str} | 📢 {source}</p>"
-                f"<p style='margin-top:8px;'>{summary}</p>"
+                f"<a href='{url}' target='_blank' style='text-decoration: none; flex: 1 1 45%; min-width: 350px; max-width: 48%;'>"
+                f"<div style='background-color:#1e1e1e; padding:15px; border-radius:6px; color:white; font-family:Arial, sans-serif; "
+                f"transition: background-color 0.3s ease; cursor: pointer;' "
+                f"onmouseover=\"this.style.backgroundColor='#2c2c2c';\" "
+                f"onmouseout=\"this.style.backgroundColor='#1e1e1e';\">"
+
+                f"<h3 style='margin-bottom:8px; font-size:1.15em; line-height:1.4;'>{headline}</h3>"
+                f"<p style='margin:4px 0; font-size:0.85em; color:#aaa;'>🕒 {time_str} | 📢 {source}</p>"
+                f"<p style='margin-top:10px; font-size:0.95em; line-height:1.5; color:#ddd;'>{summary}</p>"
                 f"{image_html}"
-                f"</div>"
+
+                f"</div></a>"
             )
 
             html += card
 
+        html += "</div></div>"  # close flex grid + scroll container
         return html
 
     except Exception as e:
         return f"<div style='color:red;'>Error loading news: {e}</div>"
-
 
 ## ashwin changes end here
 
