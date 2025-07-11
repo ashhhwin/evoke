@@ -343,6 +343,10 @@ def download_csv(file_path):
 
 #ashwin changes start here
 
+import json
+import datetime
+from google.cloud import storage
+
 def load_news_from_gcs(date_str, ticker, bucket_name="historical_data_evoke"):
     """
     Load and format news JSON into Bloomberg-style HTML cards.
@@ -372,13 +376,15 @@ def load_news_from_gcs(date_str, ticker, bucket_name="historical_data_evoke"):
             image = article.get("image", "")
             time_str = datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M') if timestamp else "N/A"
 
+            image_html = f"<img src='{image}' style='margin-top:10px; max-width:200px; border-radius:4px;'/>" if image else ""
+
             card = (
                 f"<div style='border-left: 5px solid #00ff9d; background-color:#1e1e1e; padding:15px; margin:10px 0; "
                 f"border-radius:6px; color:white; font-family:Arial, sans-serif;'>"
                 f"<h3 style='margin-bottom:5px;'><a href='{url}' target='_blank' style='color:#00baff; text-decoration:none;'>{headline}</a></h3>"
                 f"<p style='margin:4px 0; font-size:0.9em; color:#aaa;'>🕒 {time_str} | 📢 {source}</p>"
                 f"<p style='margin-top:8px;'>{summary}</p>"
-                f"{f'<img src=\"{image}\" style=\"margin-top:10px; max-width:200px; border-radius:4px;\"/>' if image else ''}"
+                f"{image_html}"
                 f"</div>"
             )
 
