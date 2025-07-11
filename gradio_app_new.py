@@ -345,27 +345,49 @@ def download_csv(file_path):
 
 def load_news_from_gcs(date_str, ticker, bucket_name="historical_data_evoke"):
     """
-    Load news JSON from GCS for a given date and ticker.
+    Load and format news JSON into Bloomberg-style HTML cards.
     """
     blob_path = f"market_data/news/{date_str}/{ticker.upper()}.json"
-    print(blob_path)
     try:
         client = storage.Client()
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(blob_path)
 
         if not blob.exists():
-            return f"No news found for {ticker} on {date_str}."
+            return f"<div style='color:red; font-weight:bold;'>No news found for {ticker.upper()} on {date_str}.</div>"
 
         content = blob.download_as_text()
-        data = json.loads(content)
+        articles = json.loads(content)
 
-        # Pretty print the JSON (you can format this better if needed)
-        pretty_output = json.dumps(data, indent=4)
-        return pretty_output
+        if not isinstance(articles, list) or not articles:
+            return "<div>No valid news entries.</div>"
+
+        html = ""
+        for article in articles:
+            headline = article.get("headline", "No headline")
+            summary = article.get("summary", "No summary available.")
+            source = article.get("source", "Unknown")
+            url = article.get("url", "#")
+            timestamp = article.get("datetime", None)
+            image = article.get("image", "")
+            time_str = datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M') if timestamp else "N/A"
+
+            card = (
+                f"<div style='border-left: 5px solid #00ff9d; background-color:#1e1e1e; padding:15px; margin:10px 0; "
+                f"border-radius:6px; color:white; font-family:Arial, sans-serif;'>"
+                f"<h3 style='margin-bottom:5px;'><a href='{url}' target='_blank' style='color:#00baff; text-decoration:none;'>{headline}</a></h3>"
+                f"<p style='margin:4px 0; font-size:0.9em; color:#aaa;'>🕒 {time_str} | 📢 {source}</p>"
+                f"<p style='margin-top:8px;'>{summary}</p>"
+                f"{f'<img src=\"{image}\" style=\"margin-top:10px; max-width:200px; border-radius:4px;\"/>' if image else ''}"
+                f"</div>"
+            )
+
+            html += card
+
+        return html
 
     except Exception as e:
-        return f"Error reading news for {ticker} on {date_str}: {e}"
+        return f"<div style='color:red;'>Error loading news: {e}</div>"
 
 
 ## ashwin changes end here
@@ -503,7 +525,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             news_ticker = gr.Dropdown(label="Select Ticker", choices=get_ticker_list(), value=None)
     
         load_news_btn = gr.Button("Load News")
-        news_output = gr.Code(label="News JSON", language="json", lines=20)
+        news_output = gr.HTML(label="News Feed")
     
         load_news_btn.click(
             fn=load_news_from_gcs,
