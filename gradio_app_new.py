@@ -473,8 +473,8 @@ def run_comparison(from_date, to_date, period,month=None):
         textposition='middle center'
     )
     rev_plot = fig_rev
-    top_eps_up = df.nlargest(10, '% EPS')[['Symbol', 'Name', 'Prev EPS',' New EPS','% EPS']]
-    top_eps_down = df.nsmallest(10, '% EPS')[['Symbol', 'Name', 'Prev EPS',' New EPS', '% EPS']]
+    top_eps_up = df.nlargest(10, '% EPS')[['Symbol', 'Name', 'Prev EPS','New EPS','% EPS']]
+    top_eps_down = df.nsmallest(10, '% EPS')[['Symbol', 'Name', 'Prev EPS','New EPS', '% EPS']]
     top_rev_up = df.nlargest(10, '% Revenue')[['Symbol', 'Name','Prev Revenue','New Revenue', '% Revenue']]
     top_rev_down = df.nsmallest(10, '% Revenue')[['Symbol', 'Name', 'Prev Revenue','New Revenue', '% Revenue']]
 
