@@ -869,7 +869,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         calendar_output = gr.HTML()
     
         def update_calendar(from_date, to_date, ticker_filter):
-            entries = load_earnings_calendar_json(tickers, from_date, to_date)
+            entries = load_earnings_calendar_json(from_date, to_date)
             return render_earnings_calendar(entries, ticker_filter)
     
         load_btn.click(
