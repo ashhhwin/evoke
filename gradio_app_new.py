@@ -648,7 +648,7 @@ def load_earnings_calendar_json(tickers: list[str], from_date, to_date, bucket_n
     all_entries = []
 
     for ticker in tickers:
-        gcs_path = f"market_data/earnings/{ticker.upper()}_{from_str}-{to_str}.json"
+        gcs_path = f"market_data/earnings_calendar/{ticker.upper()}_{from_str}-{to_str}.json"
         blob = bucket.blob(gcs_path)
         if not blob.exists():
             continue
