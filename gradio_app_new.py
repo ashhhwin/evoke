@@ -624,29 +624,35 @@ def ensure_date_str(val):
     
 # Add this function below your existing utilities
 def load_earnings_calendar_json(tickers: list[str], from_date, to_date, bucket_name="historical_data_evoke"):
-    from google.cloud import storage
     import json
     import datetime
+    from google.cloud import storage
+
+    def ensure_date(val):
+        if isinstance(val, datetime.datetime):
+            return val.date()
+        elif isinstance(val, datetime.date):
+            return val
+        else:
+            return datetime.datetime.strptime(val, "%Y-%m-%d").date()
+
+    # Convert inputs to proper date objects
+    from_dt = ensure_date(from_date)
+    to_dt = ensure_date(to_date)
+
+    # Format for file naming
+    from_str = from_dt.strftime("%Y-%m-%d")
+    to_str = to_dt.strftime("%Y-%m-%d")
 
     client = storage.Client()
     bucket = client.bucket(bucket_name)
-
-    # Normalize dates
-    from_str = ensure_date_str(from_date)
-    to_str = ensure_date_str(to_date)
-    from_dt = datetime.datetime.strptime(from_str, "%Y-%m-%d").date()
-    to_dt = datetime.datetime.strptime(to_str, "%Y-%m-%d").date()
-
     all_entries = []
-    from_dt = datetime.datetime.strptime(from_date, "%Y-%m-%d").date()
-    to_dt = datetime.datetime.strptime(to_date, "%Y-%m-%d").date()
 
     for ticker in tickers:
-        gcs_path = f"market_data/earnings/{ticker.upper()}_{from_date}-{to_date}.json"
+        gcs_path = f"market_data/earnings/{ticker.upper()}_{from_str}-{to_str}.json"
         blob = bucket.blob(gcs_path)
         if not blob.exists():
             continue
-
         try:
             content = blob.download_as_text()
             parsed = json.loads(content)
@@ -656,9 +662,9 @@ def load_earnings_calendar_json(tickers: list[str], from_date, to_date, bucket_n
                 if from_dt <= entry_date <= to_dt:
                     all_entries.append(entry)
         except Exception as e:
-            print(f"Failed loading for {ticker}: {e}")
-
+            print(f"Failed for {ticker}: {e}")
     return all_entries
+
 
 
 def render_earnings_calendar(entries, ticker_filter=""):
