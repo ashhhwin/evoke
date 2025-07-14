@@ -854,24 +854,24 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
     with gr.Tab("Earnings Calendar"):
     gr.Markdown("## 📆 Upcoming Earnings Calendar")
 
-    with gr.Row():
-        from_cal = Calendar(label="From Date")
-        to_cal = Calendar(label="To Date")
-        ticker_input = gr.Textbox(label="Search Ticker (optional)", placeholder="e.g. AAPL, TSLA")
-
-    load_btn = gr.Button("Load Calendar")
-    calendar_output = gr.HTML()
-
-    def update_calendar(from_date, to_date, ticker_filter):
-        tickers = ["AAPL"]  # You can expand this or dynamically fetch all tickers with earnings data
-        entries = load_earnings_calendar_json(tickers, from_date, to_date)
-        return render_earnings_calendar(entries, ticker_filter)
-
-    load_btn.click(
-        fn=update_calendar,
-        inputs=[from_cal, to_cal, ticker_input],
-        outputs=calendar_output
-    )
+        with gr.Row():
+            from_cal = Calendar(label="From Date")
+            to_cal = Calendar(label="To Date")
+            ticker_input = gr.Textbox(label="Search Ticker (optional)", placeholder="e.g. AAPL, TSLA")
+    
+        load_btn = gr.Button("Load Calendar")
+        calendar_output = gr.HTML()
+    
+        def update_calendar(from_date, to_date, ticker_filter):
+            tickers = ["AAPL"]  # You can expand this or dynamically fetch all tickers with earnings data
+            entries = load_earnings_calendar_json(tickers, from_date, to_date)
+            return render_earnings_calendar(entries, ticker_filter)
+    
+        load_btn.click(
+            fn=update_calendar,
+            inputs=[from_cal, to_cal, ticker_input],
+            outputs=calendar_output
+        )
 
 
 app.launch(server_name="0.0.0.0", server_port=7869)
