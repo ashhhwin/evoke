@@ -609,6 +609,98 @@ def load_news_from_gcs(date_str, ticker, keyword="", bucket_name="historical_dat
 
 ## ashwin changes end here
 
+## ashwin earnings changes start here
+
+# Add this import at the top if not already present
+from collections import defaultdict
+
+# Add this function below your existing utilities
+def load_earnings_calendar_json(tickers: list[str], from_date: str, to_date: str, bucket_name="historical_data_evoke"):
+    """Loads and combines earnings data from GCS across tickers in a date range."""
+    from google.cloud import storage
+    import json
+    import datetime
+
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+
+    all_entries = []
+    from_dt = datetime.datetime.strptime(from_date, "%Y-%m-%d").date()
+    to_dt = datetime.datetime.strptime(to_date, "%Y-%m-%d").date()
+
+    for ticker in tickers:
+        gcs_path = f"market_data/earnings/{ticker.upper()}_{from_date}-{to_date}.json"
+        blob = bucket.blob(gcs_path)
+        if not blob.exists():
+            continue
+
+        try:
+            content = blob.download_as_text()
+            parsed = json.loads(content)
+            calendar = parsed.get("earningsCalendar", [])
+            for entry in calendar:
+                entry_date = datetime.datetime.strptime(entry["date"], "%Y-%m-%d").date()
+                if from_dt <= entry_date <= to_dt:
+                    all_entries.append(entry)
+        except Exception as e:
+            print(f"Failed loading for {ticker}: {e}")
+
+    return all_entries
+
+
+def render_earnings_calendar(entries, ticker_filter=""):
+    import datetime
+    from collections import defaultdict
+
+    grouped = defaultdict(list)
+    today = datetime.date.today()
+
+    for entry in entries:
+        if ticker_filter and ticker_filter.lower() not in entry["symbol"].lower():
+            continue
+        grouped[entry["date"]].append(entry)
+
+    # Sort by date
+    grouped = dict(sorted(grouped.items(), key=lambda x: x[0]))
+
+    html = """
+    <div style='overflow-x: auto; white-space: nowrap; padding:10px;'>
+    """
+
+    for date_str, items in grouped.items():
+        date_obj = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+        date_label = date_obj.strftime("%a, %b %d")
+        block = f"""
+        <div style='display:inline-block; vertical-align:top; background:#1f1f1f; border-radius:8px; padding:15px; margin-right:20px; min-width:250px;'>
+            <h4 style='color:#00ff9d; border-bottom:1px solid #444;'>{date_label}</h4>
+        """
+        for e in items:
+            eps_est = f"{e.get('epsEstimate'):.2f}" if e.get('epsEstimate') else "—"
+            eps_act = f"{e.get('epsActual'):.2f}" if e.get('epsActual') else "—"
+            rev_est = f"${int(e.get('revenueEstimate')/1e9):,}B" if e.get('revenueEstimate') else "—"
+            rev_act = f"${int(e.get('revenueActual')/1e9):,}B" if e.get('revenueActual') else "—"
+            timing = e.get("hour", "tbd").upper()
+            if timing == "AMC": timing = "After Market"
+            elif timing == "BMO": timing = "Before Market"
+            else: timing = "TBD"
+
+            block += f"""
+            <div style='padding:8px 0; border-bottom:1px dashed #555;'>
+                <b>{e['symbol']}</b><br>
+                <span style='font-size:0.9em;'>EPS: {eps_act} / {eps_est}</span><br>
+                <span style='font-size:0.9em;'>Rev: {rev_act} / {rev_est}</span><br>
+                <span style='font-size:0.8em; color:#aaa;'>{timing}</span>
+            </div>
+            """
+        block += "</div>"
+        html += block
+
+    html += "</div>"
+    return html if grouped else "<div style='color:red;'>No earnings found for selected range.</div>"
+
+
+## ashwin earnings changes end here
+
 with gr.Blocks(theme=gr.themes.Soft()) as app:
     gr.Markdown("<h1 style='text-align:center; color:#00ff9d;'>📈 Market Data Dashboard</h1>")
 
@@ -759,5 +851,27 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 ##ashwin changes end here
+    with gr.Tab("Earnings Calendar"):
+    gr.Markdown("## 📆 Upcoming Earnings Calendar")
+
+    with gr.Row():
+        from_cal = Calendar(label="From Date")
+        to_cal = Calendar(label="To Date")
+        ticker_input = gr.Textbox(label="Search Ticker (optional)", placeholder="e.g. AAPL, TSLA")
+
+    load_btn = gr.Button("Load Calendar")
+    calendar_output = gr.HTML()
+
+    def update_calendar(from_date, to_date, ticker_filter):
+        tickers = ["AAPL"]  # You can expand this or dynamically fetch all tickers with earnings data
+        entries = load_earnings_calendar_json(tickers, from_date, to_date)
+        return render_earnings_calendar(entries, ticker_filter)
+
+    load_btn.click(
+        fn=update_calendar,
+        inputs=[from_cal, to_cal, ticker_input],
+        outputs=calendar_output
+    )
+
 
 app.launch(server_name="0.0.0.0", server_port=7862)
