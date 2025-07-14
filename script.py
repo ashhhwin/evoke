@@ -802,6 +802,33 @@ def load_master_tickers(path: str = None) -> pd.DataFrame:
     raise FileNotFoundError("Could not find master_tickers_with_flags_types.csv in project root.")
 
 
+def run_earnings_calendar_upload(tickers: List[str], from_date: str, to_date: str):
+    """
+    Fetch earnings calendar from Finnhub for each ticker and upload as JSON to GCS
+    """
+    client = fb.Client(api_key=FINNHUB_API_KEY)
+    folder_name = f"earnings_calendar/{from_date}_to_{to_date}"
+    log_progress(f"Starting earnings calendar upload for {len(tickers)} tickers")
+
+    for i, ticker in enumerate(tqdm(tickers, desc="Earnings Calendar", unit="ticker")):
+        try:
+            data = client.earnings_calendar(
+                _from=from_date,
+                to=to_date,
+                symbol=ticker,
+                international=False
+            )
+            json_str = json.dumps(data, indent=2)
+            blob_path = gcs_path(f"{folder_name}/{ticker}.json")
+            upload_string_to_gcs(BUCKET_NAME, blob_path, json_str)
+            log_progress(f"[{i+1}/{len(tickers)}] Uploaded earnings for {ticker}")
+        except Exception as e:
+            log_progress(f"[{i+1}/{len(tickers)}] ERROR {ticker}: {e}")
+        time.sleep(0.25)  # Respect Finnhub rate limits
+
+    log_progress(f"Finished earnings calendar upload for date range: {from_date} to {to_date}")
+
+
 if __name__ == "__main__":
     tickers = load_tickers(limit=None)
     #run_finnhub_data_pipeline(tickers)
