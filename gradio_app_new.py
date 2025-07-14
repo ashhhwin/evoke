@@ -624,7 +624,7 @@ def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data
     client = storage.Client()
     bucket = client.bucket(bucket_name)
 
-    prefix = "market_data/earnings_calendar/"
+    prefix = "market_data/earnings_calendar/2025-01-01_to_2025-12-01"
     blobs = client.list_blobs(bucket_name, prefix=prefix)
 
     all_entries = []
