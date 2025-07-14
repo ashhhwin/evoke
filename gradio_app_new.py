@@ -614,6 +614,14 @@ def load_news_from_gcs(date_str, ticker, keyword="", bucket_name="historical_dat
 # Add this import at the top if not already present
 from collections import defaultdict
 
+def ensure_date_str(val):
+    import datetime
+    if isinstance(val, datetime.datetime):
+        return val.strftime("%Y-%m-%d")
+    if isinstance(val, datetime.date):
+        return val.strftime("%Y-%m-%d")
+    return str(val)
+    
 # Add this function below your existing utilities
 def load_earnings_calendar_json(tickers: list[str], from_date, to_date, bucket_name="historical_data_evoke"):
     from google.cloud import storage
@@ -623,11 +631,11 @@ def load_earnings_calendar_json(tickers: list[str], from_date, to_date, bucket_n
     client = storage.Client()
     bucket = client.bucket(bucket_name)
 
-    # Handle datetime or string
-    from_dt = from_date.date() if isinstance(from_date, datetime.datetime) else datetime.datetime.strptime(from_date, "%Y-%m-%d").date()
-    to_dt = to_date.date() if isinstance(to_date, datetime.datetime) else datetime.datetime.strptime(to_date, "%Y-%m-%d").date()
-    from_str = from_dt.strftime("%Y-%m-%d")
-    to_str = to_dt.strftime("%Y-%m-%d")
+    # Normalize dates
+    from_str = ensure_date_str(from_date)
+    to_str = ensure_date_str(to_date)
+    from_dt = datetime.datetime.strptime(from_str, "%Y-%m-%d").date()
+    to_dt = datetime.datetime.strptime(to_str, "%Y-%m-%d").date()
 
     all_entries = []
     from_dt = datetime.datetime.strptime(from_date, "%Y-%m-%d").date()
