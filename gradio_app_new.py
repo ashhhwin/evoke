@@ -860,8 +860,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         gr.Markdown("## 📆 Upcoming Earnings Calendar")
     
         from datetime import date, timedelta
-        default_from = date.today() - timedelta(days=2)
-        default_to = date.today() + timedelta(days=5)
+        default_from = (date.today() - timedelta(days=2)).strftime("%Y-%m-%d")
+        default_to = (date.today() + timedelta(days=5)).strftime("%Y-%m-%d")
     
         with gr.Row():
             from_cal = Calendar(label="From Date", value=default_from)
