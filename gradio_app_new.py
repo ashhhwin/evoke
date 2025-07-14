@@ -30,6 +30,30 @@ import io
 import time
 from google.cloud import storage
 from datetime import datetime
+
+def get_fixed_periods():
+    today = pd.Timestamp.today()
+
+    # Define quarters
+    current_q = (today.month - 1) // 3 + 1
+    current_y = today.year
+
+    def quarter_str(q, y): return f"Q{q}-{y}"
+
+    # Build list
+    prev_q = quarter_str(current_q - 1 if current_q > 1 else 4, current_y if current_q > 1 else current_y - 1)
+    curr_q = quarter_str(current_q, current_y)
+    next_q = quarter_str(current_q + 1 if current_q < 4 else 1, current_y if current_q < 4 else current_y + 1)
+
+    return [
+        prev_q,
+        curr_q,
+        next_q,
+        str(current_y),
+        str(current_y + 1),
+        str(current_y + 2)
+    ]
+
 def read_csv_from_gcs(bucket_name, blob_path, max_retries=5, delay=2):
     """
     Read CSV from GCS with retry logic.
@@ -302,8 +326,6 @@ def plot_close_price_history(ticker: str):
                     xanchor='center',
                     yanchor='top'
                 ),
-                rangeslider=dict(visible=True),
-                type="date"
             ),
             yaxis=dict(title="Close Price"),
             yaxis2=dict(title="Volume")
@@ -901,8 +923,9 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         with gr.Row():
             from_date = gr.Dropdown(label="From Date", choices=dates, value=prior)
             to_date = gr.Dropdown(label="To Date", choices=dates, value=latest)
-        period = gr.Dropdown(label="Period", choices=get_periods_for_date(latest), value=get_periods_for_date(latest))
-        
+        #period = gr.Dropdown(label="Period", choices=get_periods_for_date(latest), value=get_periods_for_date(latest))
+        fixed_periods = get_fixed_periods()
+        period = gr.Dropdown(label="Period", choices=fixed_periods, value=fixed_periods[1])  # Default: current quarter
         months = [datetime(2000, m, 1).strftime("%B") for m in range(1, 13)]
         month_dropdown = gr.Dropdown(label="Filter by Earnings Month", choices=['ALL']+months, value="ALL")
 
