@@ -634,13 +634,16 @@ def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data
         if not blob.name.endswith(".json"):
             continue
         try:
+            print(f"📄 Reading file: {blob.name}")
             content = blob.download_as_text()
             parsed = json.loads(content)
             for entry in parsed.get("earningsCalendar", []):
                 entry_date = datetime.datetime.strptime(entry["date"], "%Y-%m-%d").date()
                 if from_dt <= entry_date <= to_dt:
+                    print(f"✅ Matched: {entry['symbol']} for {entry['date']}")
                     all_entries.append(entry)
         except Exception as e:
+            print(f"❌ Date parse failed for {entry.get('symbol')} - {entry.get('date')}: {e}")
             print(f"Error reading {blob.name}: {e}")
             continue
 
