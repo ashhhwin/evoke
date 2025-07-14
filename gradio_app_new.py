@@ -874,4 +874,4 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
     )
 
 
-app.launch(server_name="0.0.0.0", server_port=7862)
+app.launch(server_name="0.0.0.0", server_port=7869)
