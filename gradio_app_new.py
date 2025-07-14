@@ -622,7 +622,6 @@ def ensure_date_str(val):
         return val.strftime("%Y-%m-%d")
     return str(val)
     
-# Add this function below your existing utilities
 def load_earnings_calendar_json(tickers: list[str], from_date, to_date, bucket_name="historical_data_evoke"):
     import json
     import datetime
