@@ -20,6 +20,7 @@ from run_full_pipeline import (
 import datetime
 from gradio_calendar import Calendar
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import pandas as pd
 from compare_eps_revenue import list_available_dates, list_available_periods, compare_eps_revenue
 import os
@@ -146,7 +147,7 @@ def run_both_pipelines():
     except Exception as e:
         return f"Failed: {e}"
        
-def plot_close_price_history(ticker: str):
+def plot_close_price_history_plotly_without_subplots(ticker: str):
     try:
         df = load_historical_close_prices(ticker)
         # Sort by date
@@ -228,6 +229,82 @@ def plot_close_price_history(ticker: str):
             go.Figure(layout_title_text=f"Error: {e}"),
             go.Figure(layout_title_text=f"No volume data available: {e}")
         )
+        
+def plot_close_price_history(ticker: str):
+    try:
+        df = load_historical_close_prices(ticker)
+        df = df.sort_values("Trade_Date")
+        colors = ["green" if val >= 0 else "red" for val in df["Close_to_Close (%)"]]
+
+        # Create subplot with shared x-axis
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.1,
+            row_heights=[0.5, 0.5],
+            subplot_titles=(f"{ticker.upper()} - Close Price", f"{ticker.upper()} - Volume + 14D/50D MAs")
+        )
+
+        # Row 1: Close Price
+        fig.add_trace(go.Scatter(
+            x=df["Trade_Date"],
+            y=df["P_Close"],
+            mode="lines+markers",
+            name="Close Price"
+        ), row=1, col=1)
+
+        # Row 2: Volume Bar
+        fig.add_trace(go.Bar(
+            x=df["Trade_Date"],
+            y=df["volume"],
+            name="Volume",
+            marker_color=colors
+        ), row=2, col=1)
+
+        # Row 2: 14D and 50D MA lines
+        if "V_14D_MA" in df.columns:
+            fig.add_trace(go.Scatter(
+                x=df["Trade_Date"],
+                y=df["V_14D_MA"],
+                name="14D MA Volume",
+                mode="lines",
+                line=dict(color="orange", dash="dash")
+            ), row=2, col=1)
+
+        if "V_50D_MA" in df.columns:
+            fig.add_trace(go.Scatter(
+                x=df["Trade_Date"],
+                y=df["V_50D_MA"],
+                name="50D MA Volume",
+                mode="lines",
+                line=dict(color="blue", dash="dot")
+            ), row=2, col=1)
+
+        # Layout
+        fig.update_layout(
+            height=800,
+            showlegend=True,
+            xaxis=dict(
+                title="Date",
+                rangeselector=dict(
+                    buttons=list([
+                        dict(count=7, label="1W", step="day", stepmode="backward"),
+                        dict(count=30, label="1M", step="day", stepmode="backward"),
+                        dict(count=6, label="6M", step="month", stepmode="backward"),
+                        dict(count=12, label="1Y", step="month", stepmode="backward"),
+                        dict(step="all", label="All")
+                    ])
+                ),
+                rangeslider=dict(visible=True),
+                type="date"
+            ),
+            yaxis=dict(title="Close Price"),
+            yaxis2=dict(title="Volume")
+        )
+
+        return fig
+    except Exception as e:
+        return go.Figure(layout_title_text=f"Error: {e}")
 ## ashwin changes start here for excel workbook
 
 def load_df(filepath):
@@ -769,8 +846,9 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
         gr.Markdown("## View Close Price and Volume by Ticker")
         # Close price chart below
-        close_plot = gr.Plot(label="Close Price History")
-        volume_plot = gr.Plot(label="Volume ")
+        #close_plot = gr.Plot(label="Close Price History")
+        #volume_plot = gr.Plot(label="Volume ")
+        close_vol_plot = gr.Plot(label = " Close Price and Volume")
         # Ticker snapshot info at the bottom
         ticker_info = gr.Textbox(label="Latest Ticker Snapshot", lines=30, interactive=False)
 
@@ -780,28 +858,35 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             except Exception as e:
                 eps_fig = go.Figure(layout_title_text=f"Error loading EPS: {e}")
                 rev_fig = go.Figure(layout_title_text=f"Error loading Revenue: {e}")
+            #try:
+            #    price_fig, vol_fig = plot_close_price_history(ticker)
+            #except Exception as e:
+             #   price_fig = go.Figure(layout_title_text=f"Error loading price: {e}")
+              #  vol_fig = go.Figure(layout_title_text=f"Error loading volume: {e}")
             try:
-                price_fig, vol_fig = plot_close_price_history(ticker)
+                close_vol_fig = plot_close_price_history(ticker)
             except Exception as e:
-                price_fig = go.Figure(layout_title_text=f"Error loading price: {e}")
-                vol_fig = go.Figure(layout_title_text=f"Error loading volume: {e}")
+                close_vol_fig = go.Figure(layout_title_text=f"Error loading price/volume: {e}")
             try:
                 snapshot = display_latest_ticker_snapshot(ticker)
             except Exception as e:
                 snapshot = f"Error loading ticker snapshot: {e}"
-            return eps_fig, rev_fig, price_fig, vol_fig, snapshot
+            #return eps_fig, rev_fig, price_fig, vol_fig, snapshot
+            return eps_fig, rev_fig, close_vol_fig, snapshot
     
         # Update all elements when ticker or type changes
         ticker_dropdown.change(
             fn=update_all,
             inputs=[ticker_dropdown, data_type],
-            outputs=[eps_plot, rev_plot, close_plot, volume_plot, ticker_info]
+            #outputs=[eps_plot, rev_plot, close_plot, volume_plot, ticker_info]
+            outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info]
         )
 
         data_type.change(
             fn=update_all,
             inputs=[ticker_dropdown, data_type],
-            outputs=[eps_plot, rev_plot, close_plot, volume_plot, ticker_info]
+            #outputs=[eps_plot, rev_plot, close_plot, volume_plot, ticker_info]
+            outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info]
         )
 
     with gr.Tab("EPS & Revenue Revisions"):
