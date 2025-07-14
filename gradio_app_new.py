@@ -611,7 +611,6 @@ def load_news_from_gcs(date_str, ticker, keyword="", bucket_name="historical_dat
 
 ## ashwin earnings changes start here
 
-# Add this import at the top if not already present
 from collections import defaultdict
 
 # Add this function below your existing utilities
@@ -634,17 +633,20 @@ def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data
         if not blob.name.endswith(".json"):
             continue
         try:
-            print(f"📄 Reading file: {blob.name}")
             content = blob.download_as_text()
             parsed = json.loads(content)
             for entry in parsed.get("earningsCalendar", []):
-                entry_date = datetime.datetime.strptime(entry["date"], "%Y-%m-%d").date()
+                try:
+                    entry_date = datetime.datetime.strptime(entry["date"], "%Y-%m-%d").date()
+                except Exception as e:
+                    # print(f"❌ Bad date format in {blob.name}: {entry.get('date')}")
+                    continue
+
                 if from_dt <= entry_date <= to_dt:
-                    print(f"✅ Matched: {entry['symbol']} for {entry['date']}")
+                    # print(f"✅ Matched: {entry['symbol']} for {entry['date']} from {blob.name}")
                     all_entries.append(entry)
         except Exception as e:
-            print(f"❌ Date parse failed for {entry.get('symbol')} - {entry.get('date')}: {e}")
-            print(f"Error reading {blob.name}: {e}")
+            # print(f"Error reading {blob.name}: {e}")
             continue
 
     return all_entries
@@ -670,11 +672,13 @@ def render_earnings_calendar(entries, ticker_filter=""):
     for date_str, items in grouped.items():
         date_obj = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
         date_label = date_obj.strftime("%a, %b %d")
+        ticker_count = len(items)
+        header = f"{date_label} <span style='color:#888;'>({ticker_count} Earnings)</span>"
         highlight = "border: 2px solid #00ff9d;" if date_obj == today else ""
 
         block = f"""
         <div style='min-width: 220px; max-width: 240px; background:#1e1e1e; padding:12px 14px; border-radius:8px; color:#eee; font-family:Inter, sans-serif; box-shadow: 0 0 4px #00000033; {highlight}'>
-            <h4 style='color:#00ff9d; font-weight:bold; border-bottom:1px solid #333; padding-bottom:6px; margin-bottom:10px;'>{date_label}</h4>
+            <h4 style='color:#00ff9d; font-weight:bold; border-bottom:1px solid #333; padding-bottom:6px; margin-bottom:10px;'>{header}</h4>
         """
 
         for e in items:
@@ -699,7 +703,6 @@ def render_earnings_calendar(entries, ticker_filter=""):
 
     html += "</div>"
     return html if grouped else "<div style='color:red;'>No earnings found for selected range.</div>"
-
 
 ## ashwin earnings changes end here
 
@@ -852,28 +855,37 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=news_output
         )
 
-##ashwin changes end here
+    ##ashwin changes end here
     with gr.Tab("Earnings Calendar"):
         gr.Markdown("## 📆 Upcoming Earnings Calendar")
     
+        from datetime import date, timedelta
+        default_from = date.today() - timedelta(days=2)
+        default_to = date.today() + timedelta(days=5)
+    
         with gr.Row():
-            from_cal = Calendar(label="From Date")
-            to_cal = Calendar(label="To Date")
+            from_cal = Calendar(label="From Date", value=default_from)
+            to_cal = Calendar(label="To Date", value=default_to)
             ticker_input = gr.Textbox(label="Search Ticker (optional)", placeholder="e.g. AAPL, TSLA")
     
         load_btn = gr.Button("Load Calendar")
+        status_box = gr.Textbox(label="", interactive=False, visible=True, lines=1)
         calendar_output = gr.HTML()
     
         def update_calendar(from_date, to_date, ticker_filter):
-            print(f"🔍 Loading calendar from {from_date} to {to_date} for filter: {ticker_filter}")
+            import datetime
             entries = load_earnings_calendar_json(from_date, to_date)
-            return render_earnings_calendar(entries, ticker_filter)
+            filtered = [e for e in entries if not ticker_filter or ticker_filter.lower() in e['symbol'].lower()]
+            summary = f"✅ Loaded {len(filtered)} earnings from {len(entries)} entries ({from_date} to {to_date})"
+            # print(f"👀 Showing {len(filtered)} filtered entries")
+            return summary, render_earnings_calendar(filtered, "")
     
         load_btn.click(
             fn=update_calendar,
             inputs=[from_cal, to_cal, ticker_input],
-            outputs=calendar_output
+            outputs=[status_box, calendar_output]
         )
+
 
 
 app.launch(server_name="0.0.0.0", server_port=7869)
