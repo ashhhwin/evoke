@@ -615,14 +615,19 @@ def load_news_from_gcs(date_str, ticker, keyword="", bucket_name="historical_dat
 from collections import defaultdict
 
 # Add this function below your existing utilities
-def load_earnings_calendar_json(tickers: list[str], from_date: str, to_date: str, bucket_name="historical_data_evoke"):
-    """Loads and combines earnings data from GCS across tickers in a date range."""
+def load_earnings_calendar_json(tickers: list[str], from_date, to_date, bucket_name="historical_data_evoke"):
     from google.cloud import storage
     import json
     import datetime
 
     client = storage.Client()
     bucket = client.bucket(bucket_name)
+
+    # Handle datetime or string
+    from_dt = from_date.date() if isinstance(from_date, datetime.datetime) else datetime.datetime.strptime(from_date, "%Y-%m-%d").date()
+    to_dt = to_date.date() if isinstance(to_date, datetime.datetime) else datetime.datetime.strptime(to_date, "%Y-%m-%d").date()
+    from_str = from_dt.strftime("%Y-%m-%d")
+    to_str = to_dt.strftime("%Y-%m-%d")
 
     all_entries = []
     from_dt = datetime.datetime.strptime(from_date, "%Y-%m-%d").date()
