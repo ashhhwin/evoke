@@ -384,8 +384,9 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
 
 
 
-def run_comparison(from_date, to_date, period,month=None):
+def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
     #added month=None
+    #added selected_caps = None
 
     safe_period = str(period).replace(' ', '').replace('/', '').replace('\\', '').replace(':', '')
     output_file = f"eps_revenue_comparison_{from_date}_to_{to_date}_for_{safe_period}.csv"
@@ -434,8 +435,13 @@ def run_comparison(from_date, to_date, period,month=None):
         elif cap >= 250: return "Small Cap"
         elif cap >= 50: return "Micro Cap"
         else: return "Nano Cap"
+            
 
     df['MarketCapCategory'] = df['Mkt. Cap'].apply(categorize_market_cap)
+    all_categories = ['Mega Cap', 'Large Cap', 'Mid Cap', 'Small Cap', 'Micro Cap', 'Nano Cap']
+    if selected_caps is None or len(selected_caps) == 0:
+        selected_caps = all_categories
+    df = df[df['MarketCapCategory'].isin(selected_caps)]
     df = df[df['Sector'].notna() & df['Industry'].notna() & df['% EPS'].notna() & df['% Revenue'].notna()]
     df['count'] = 1
 
@@ -479,10 +485,10 @@ def run_comparison(from_date, to_date, period,month=None):
         textposition='middle center'
     )
     rev_plot = fig_rev
-    top_eps_up = df.nlargest(10, '% EPS')[['Symbol', 'Name', 'Prev EPS','New EPS','% EPS']]
-    top_eps_down = df.nsmallest(10, '% EPS')[['Symbol', 'Name', 'Prev EPS','New EPS', '% EPS']]
-    top_rev_up = df.nlargest(10, '% Revenue')[['Symbol', 'Name','Prev Revenue','New Revenue', '% Revenue']]
-    top_rev_down = df.nsmallest(10, '% Revenue')[['Symbol', 'Name', 'Prev Revenue','New Revenue', '% Revenue']]
+    top_eps_up = df.nlargest(10, '% EPS')[['Symbol', 'Name', 'Mkt. Cap','Prev EPS','New EPS','% EPS']]
+    top_eps_down = df.nsmallest(10, '% EPS')[['Symbol', 'Name','Mkt. Cap', 'Prev EPS','New EPS', '% EPS']]
+    top_rev_up = df.nlargest(10, '% Revenue')[['Symbol', 'Name','Mkt. Cap','Prev Revenue','New Revenue', '% Revenue']]
+    top_rev_down = df.nsmallest(10, '% Revenue')[['Symbol', 'Name','Mkt. Cap', 'Prev Revenue','New Revenue', '% Revenue']]
 
     '''
     eps_movers_table = (
@@ -803,8 +809,17 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             from_date = gr.Dropdown(label="From Date", choices=dates, value=prior)
             to_date = gr.Dropdown(label="To Date", choices=dates, value=latest)
         period = gr.Dropdown(label="Period", choices=get_periods_for_date(latest), value=get_periods_for_date(latest))
+        
         months = [datetime(2000, m, 1).strftime("%B") for m in range(1, 13)]
         month_dropdown = gr.Dropdown(label="Filter by Earnings Month", choices=['ALL']+months, value="ALL")
+
+        market_caps = ['Mega Cap', 'Large Cap', 'Mid Cap', 'Small Cap', 'Micro Cap', 'Nano Cap']
+        market_cap_dropdown = gr.CheckboxGroup(
+            choices=market_caps,
+            value=market_caps,  # All selected by default
+            label="Filter by Market Cap Category"
+        )
+        
         run_comparison_btn = gr.Button("Run Comparison")
         #output_file = gr.File(label="Download CSV", visible=False)
         status = gr.Textbox(label="Status", interactive=False)
@@ -831,7 +846,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
         run_comparison_btn.click(
             fn=run_comparison,
-            inputs=[from_date, to_date, period, month_dropdown],
+            inputs=[from_date, to_date, period, month_dropdown,market_cap_dropdown],
             outputs=[ status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box, excel_download]
         )
 
