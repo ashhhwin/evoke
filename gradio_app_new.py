@@ -325,9 +325,9 @@ def transform_to_wrkbook(df):
                 # Format logic
                 cell.value = value
                 if header == "Mkt. Cap":
-                    cell.number_format = '"$"#,##0.00'
+                    cell.number_format = '"$"#,##0'
                 elif header == "Float":
-                    cell.number_format = '0'
+                    cell.number_format = '#,##0'
                 elif "Revenue" in header and "%" not in header:
                     cell.number_format = '"$"#,##0'
                 elif "EPS" in header and "%" not in header:
@@ -365,6 +365,7 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     local_csv_path = f"/tmp/{csv_filename}"
 
     client = storage.Client()
+
     blob = client.bucket(bucket).blob(gcs_path)
 
     if not blob.exists():
