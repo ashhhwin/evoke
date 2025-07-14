@@ -869,7 +869,6 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         calendar_output = gr.HTML()
     
         def update_calendar(from_date, to_date, ticker_filter):
-            tickers = ["AAPL"]  # You can expand this or dynamically fetch all tickers with earnings data
             entries = load_earnings_calendar_json(tickers, from_date, to_date)
             return render_earnings_calendar(entries, ticker_filter)
     
