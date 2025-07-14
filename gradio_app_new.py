@@ -622,48 +622,36 @@ def ensure_date_str(val):
         return val.strftime("%Y-%m-%d")
     return str(val)
     
-def load_earnings_calendar_json(tickers: list[str], from_date, to_date, bucket_name="historical_data_evoke"):
-    import json
-    import datetime
+def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data_evoke"):
+    import datetime, re, json
     from google.cloud import storage
 
-    def ensure_date(val):
-        if isinstance(val, datetime.datetime):
-            return val.date()
-        elif isinstance(val, datetime.date):
-            return val
-        else:
-            return datetime.datetime.strptime(val, "%Y-%m-%d").date()
-
-    # Convert inputs to proper date objects
-    from_dt = ensure_date(from_date)
-    to_dt = ensure_date(to_date)
-
-    # Format for file naming
-    from_str = from_dt.strftime("%Y-%m-%d")
-    to_str = to_dt.strftime("%Y-%m-%d")
+    from_dt = from_date.date() if isinstance(from_date, datetime.datetime) else datetime.datetime.strptime(str(from_date), "%Y-%m-%d").date()
+    to_dt = to_date.date() if isinstance(to_date, datetime.datetime) else datetime.datetime.strptime(str(to_date), "%Y-%m-%d").date()
 
     client = storage.Client()
     bucket = client.bucket(bucket_name)
+
+    prefix = "market_data/earnings_calendar/"
+    blobs = client.list_blobs(bucket_name, prefix=prefix)
+
     all_entries = []
 
-    for ticker in tickers:
-        gcs_path = f"market_data/earnings_calendar/{ticker.upper()}_{from_str}-{to_str}.json"
-        blob = bucket.blob(gcs_path)
-        if not blob.exists():
+    for blob in blobs:
+        if not blob.name.endswith(".json"):
             continue
         try:
             content = blob.download_as_text()
             parsed = json.loads(content)
-            calendar = parsed.get("earningsCalendar", [])
-            for entry in calendar:
+            for entry in parsed.get("earningsCalendar", []):
                 entry_date = datetime.datetime.strptime(entry["date"], "%Y-%m-%d").date()
                 if from_dt <= entry_date <= to_dt:
                     all_entries.append(entry)
         except Exception as e:
-            print(f"Failed for {ticker}: {e}")
-    return all_entries
+            print(f"Error reading {blob.name}: {e}")
+            continue
 
+    return all_entries
 
 
 def render_earnings_calendar(entries, ticker_filter=""):
