@@ -614,16 +614,9 @@ def load_news_from_gcs(date_str, ticker, keyword="", bucket_name="historical_dat
 # Add this import at the top if not already present
 from collections import defaultdict
 
-def ensure_date_str(val):
-    import datetime
-    if isinstance(val, datetime.datetime):
-        return val.strftime("%Y-%m-%d")
-    if isinstance(val, datetime.date):
-        return val.strftime("%Y-%m-%d")
-    return str(val)
-    
+# Add this function below your existing utilities
 def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data_evoke"):
-    import datetime, re, json
+    import datetime, json
     from google.cloud import storage
 
     from_dt = from_date.date() if isinstance(from_date, datetime.datetime) else datetime.datetime.strptime(str(from_date), "%Y-%m-%d").date()
@@ -659,45 +652,45 @@ def render_earnings_calendar(entries, ticker_filter=""):
     from collections import defaultdict
 
     grouped = defaultdict(list)
-    today = datetime.date.today()
-
     for entry in entries:
         if ticker_filter and ticker_filter.lower() not in entry["symbol"].lower():
             continue
         grouped[entry["date"]].append(entry)
 
-    # Sort by date
     grouped = dict(sorted(grouped.items(), key=lambda x: x[0]))
-
     html = """
-    <div style='overflow-x: auto; white-space: nowrap; padding:10px;'>
+    <div style='display: flex; flex-direction: row; overflow-x: auto; gap: 20px; padding: 10px 0;'>
     """
+
+    today = datetime.date.today()
 
     for date_str, items in grouped.items():
         date_obj = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
         date_label = date_obj.strftime("%a, %b %d")
+        highlight = "border: 2px solid #00ff9d;" if date_obj == today else ""
+
         block = f"""
-        <div style='display:inline-block; vertical-align:top; background:#1f1f1f; border-radius:8px; padding:15px; margin-right:20px; min-width:250px;'>
-            <h4 style='color:#00ff9d; border-bottom:1px solid #444;'>{date_label}</h4>
+        <div style='min-width: 220px; max-width: 240px; background:#1e1e1e; padding:12px 14px; border-radius:8px; color:#eee; font-family:Inter, sans-serif; box-shadow: 0 0 4px #00000033; {highlight}'>
+            <h4 style='color:#00ff9d; font-weight:bold; border-bottom:1px solid #333; padding-bottom:6px; margin-bottom:10px;'>{date_label}</h4>
         """
+
         for e in items:
-            eps_est = f"{e.get('epsEstimate'):.2f}" if e.get('epsEstimate') else "—"
-            eps_act = f"{e.get('epsActual'):.2f}" if e.get('epsActual') else "—"
-            rev_est = f"${int(e.get('revenueEstimate')/1e9):,}B" if e.get('revenueEstimate') else "—"
-            rev_act = f"${int(e.get('revenueActual')/1e9):,}B" if e.get('revenueActual') else "—"
-            timing = e.get("hour", "tbd").upper()
-            if timing == "AMC": timing = "After Market"
-            elif timing == "BMO": timing = "Before Market"
-            else: timing = "TBD"
+            symbol = e.get("symbol", "—")
+            hour = e.get("hour", "tbd").upper()
+            if hour == "AMC":
+                timing = "After Market"
+            elif hour == "BMO":
+                timing = "Before Market"
+            else:
+                timing = "TBD"
 
             block += f"""
-            <div style='padding:8px 0; border-bottom:1px dashed #555;'>
-                <b>{e['symbol']}</b><br>
-                <span style='font-size:0.9em;'>EPS: {eps_act} / {eps_est}</span><br>
-                <span style='font-size:0.9em;'>Rev: {rev_act} / {rev_est}</span><br>
-                <span style='font-size:0.8em; color:#aaa;'>{timing}</span>
+            <div style='padding:6px 0; border-bottom:1px dashed #444;'>
+                <div style='font-weight:bold;'>{symbol}</div>
+                <div style='font-size:0.85em; color:#aaa;'>{timing}</div>
             </div>
             """
+
         block += "</div>"
         html += block
 
@@ -859,7 +852,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 ##ashwin changes end here
     with gr.Tab("Earnings Calendar"):
         gr.Markdown("## 📆 Upcoming Earnings Calendar")
-
+    
         with gr.Row():
             from_cal = Calendar(label="From Date")
             to_cal = Calendar(label="To Date")
@@ -869,6 +862,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         calendar_output = gr.HTML()
     
         def update_calendar(from_date, to_date, ticker_filter):
+            print(f"🔍 Loading calendar from {from_date} to {to_date} for filter: {ticker_filter}")
             entries = load_earnings_calendar_json(from_date, to_date)
             return render_earnings_calendar(entries, ticker_filter)
     
