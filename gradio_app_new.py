@@ -38,7 +38,9 @@ def get_fixed_periods():
     current_q = (today.month - 1) // 3 + 1
     current_y = today.year
 
-    def quarter_str(q, y): return f"Q{q}-{y}"
+    def quarter_str(q, y):
+        y_short = str(y)[-2:]  # Convert 2025 → "25"
+        return f"Q{q}-{y_short}"
 
     # Build list
     prev_q = quarter_str(current_q - 1 if current_q > 1 else 4, current_y if current_q > 1 else current_y - 1)
