@@ -852,7 +852,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
 ##ashwin changes end here
     with gr.Tab("Earnings Calendar"):
-    gr.Markdown("## 📆 Upcoming Earnings Calendar")
+        gr.Markdown("## 📆 Upcoming Earnings Calendar")
 
         with gr.Row():
             from_cal = Calendar(label="From Date")
