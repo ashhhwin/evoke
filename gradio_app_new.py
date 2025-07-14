@@ -285,6 +285,9 @@ def plot_close_price_history(ticker: str):
             height=800,
             showlegend=True,
             xaxis=dict(
+                title="Date"
+            ),
+            xaxis2=dict(
                 title="Date",
                 rangeselector=dict(
                     buttons=list([
@@ -293,9 +296,15 @@ def plot_close_price_history(ticker: str):
                         dict(count=6, label="6M", step="month", stepmode="backward"),
                         dict(count=12, label="1Y", step="month", stepmode="backward"),
                         dict(step="all", label="All")
-                    ])
+                    ]),
+                    x=0.5,
+                    y=-0.2,
+                    xanchor='center',
+                    yanchor='top'
                 ),
-                rangeslider=dict(visible=True),
+                rangeslider=dict(font=dict(size=10, color='gray'),
+                        bgcolor='white',
+                        activecolor='blue'),
                 type="date"
             ),
             yaxis=dict(title="Close Price"),
