@@ -302,9 +302,7 @@ def plot_close_price_history(ticker: str):
                     xanchor='center',
                     yanchor='top'
                 ),
-                rangeslider=dict(font=dict(size=10, color='gray'),
-                        bgcolor='white',
-                        activecolor='blue'),
+                rangeslider=dict(visible=True),
                 type="date"
             ),
             yaxis=dict(title="Close Price"),
