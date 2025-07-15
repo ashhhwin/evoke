@@ -14,17 +14,16 @@ app.permanent_session_lifetime = timedelta(minutes=0.2)
 
 #USERNAME = "admin"
 #PASSWORD = "admin123"
-
-def get_secret(project_id: str, secret_id: str, version_id: str = "latest") -> str:
+def get_password_from_secret(secret_name: str) -> str:
     client = secretmanager.SecretManagerServiceClient()
-    name = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
-    response = client.access_secret_version(request={"name": name})
+    project_id = "tonal-nucleus-464617-n2"
+    secret_path = f"projects/{project_id}/secrets/{secret_name}/versions/latest"
+    response = client.access_secret_version(name=secret_path)
     return response.payload.data.decode("UTF-8")
 
 USERNAME_SECRET_NAME = "EvokeInterns"  # The actual name of the secret
 USERNAME = "Evoke Interns"
-PROJECT_ID = "tonal-nucleus-464617-n2"
-PASSWORD = get_secret(PROJECT_ID,USERNAME_SECRET_NAME) 
+#PASSWORD = get_secret(PROJECT_ID,USERNAME_SECRET_NAME) 
 
 @app.before_request
 def check_session_expiry():
@@ -56,13 +55,20 @@ def check_session_expiry():
 @app.route("/", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        if request.form["username"] == USERNAME and request.form["password"] == PASSWORD:
-            session.permanent = True
-            session["logged_in"] = True
-            session["last_seen"] = datetime.utcnow().isoformat()  # ✅ add this line
-            return redirect("/dashboard")
-        else:
-            return render_template("login.html", error="Invalid credentials")
+        entered_username = request.form["username"]
+        entered_password = request.form["password"]
+        try:
+            actual_password = get_password_from_secret(entered_username)
+            if entered_password == actual_password:
+                session.permanent = True
+                session["logged_in"] = True
+                session["last_seen"] = datetime.utcnow().isoformat()
+                return redirect("/dashboard")
+            else:
+                return render_template("login.html", error="Invalid credentials")
+        except Exception as e:
+            return render_template("login.html", error="User not found or secret fetch error")
+
     return render_template("login.html")
 
 
