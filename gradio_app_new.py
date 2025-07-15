@@ -948,32 +948,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             #outputs=[eps_plot, rev_plot, close_plot, volume_plot, ticker_info]
             outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info]
         )
-'''
-        ticker_dropdown.change(
-            fn=update_all,
-            inputs=[ticker_dropdown, data_type, step_size_dropdown, step_count_slider],
-            outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info]
-        )
         
-        data_type.change(
-            fn=update_all,
-            inputs=[ticker_dropdown, data_type, step_size_dropdown, step_count_slider],
-            outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info]
-        )
-        
-        step_size_dropdown.change(
-            fn=update_all,
-            inputs=[ticker_dropdown, data_type, step_size_dropdown, step_count_slider],
-            outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info]
-        )
-        
-        step_count_slider.change(
-            fn=update_all,
-            inputs=[ticker_dropdown, data_type, step_size_dropdown, step_count_slider],
-            outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info]
-        )
-'''
-     with gr.Tab("EPS & Revenue Revisions"):
+    with gr.Tab("EPS & Revenue Revisions"):
         gr.Markdown("### Compare EPS & Revenue Estimates")
         with gr.Row():
             from_date = gr.Dropdown(label="From Date", choices=dates, value=prior)
