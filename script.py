@@ -832,8 +832,8 @@ def run_earnings_calendar_upload(tickers: List[str], from_date: str, to_date: st
 if __name__ == "__main__":
     tickers = load_tickers(limit=None)
     #run_finnhub_data_pipeline(tickers)
-    #run_pipelines_concurrently(tickers)
-    run_earnings_calendar_upload(tickers, from_date="2025-01-01", to_date="2025-12-01")
+    run_pipelines_concurrently(tickers)
+    #run_earnings_calendar_upload(tickers, from_date="2025-01-01", to_date="2025-12-01")
     #run_daily_bulk_download(tickers)
     #detect_eps_revenue_changes()
     #update_cron_stats(True)
