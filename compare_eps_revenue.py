@@ -111,6 +111,19 @@ def compare_eps_revenue(from_date=None, to_date=None, quarters=None, output_file
         logger.warning("Not enough daily folders to compare changes.")
         return None
 
+    ## checking if it exists
+
+    if output_file:
+        client = storage.Client()
+        gcs_path = f"market_data/revisions/{output_file}"
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(gcs_path)
+        if blob.exists():
+            print(f"✅ Output file already exists in GCS: {gcs_path}")
+            return  # Skip recomputation — later function will use this CSV
+
+    ## checking if it exists END
+        
     # Robust date folder selection
     latest = None
     prior = None
