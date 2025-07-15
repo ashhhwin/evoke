@@ -1,14 +1,21 @@
-from flask import Flask, render_template, request, redirect, session
+from flask import Flask, request, redirect, url_for, session, render_template
+import threading
+import gradio as gr
+
+from gradio_app_new import app as gradio_app  # This is your big dashboard script
 
 app = Flask(__name__, template_folder="templates")
-app.secret_key = "your-secret-key"
+app.secret_key = "super-secret-key"  # Replace with env/secret manager in production
+
+USERNAME = "admin"
+PASSWORD = "admin123"
 
 @app.route("/", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        if request.form["username"] == "admin" and request.form["password"] == "admin123":
+        if request.form["username"] == USERNAME and request.form["password"] == PASSWORD:
             session["logged_in"] = True
-            return "Login successful!"
+            return redirect("/dashboard")
         else:
             return render_template("login.html", error="Invalid credentials")
     return render_template("login.html")
@@ -17,4 +24,21 @@ def login():
 def dashboard():
     if not session.get("logged_in"):
         return redirect("/")
-    return "Dashboard Loaded"
+    # Instead of redirecting to localhost:7869 (which works only inside the VM),
+    # redirect the client browser to the full external IP and Gradio port
+    return redirect("http://34.162.66.126:7869")  # ⬅️ IMPORTANT: use external IP
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/")
+
+# Launch Gradio on 127.0.0.1:7869 in the background
+def run_gradio():
+    gradio_app.launch(server_name="127.0.0.1", server_port=7869, show_error=True)
+
+# Start Gradio in background when Flask loads
+threading.Thread(target=run_gradio, daemon=True).start()
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
