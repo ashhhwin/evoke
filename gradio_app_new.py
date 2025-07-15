@@ -973,7 +973,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info]
         )
 '''
-    with gr.Tab("EPS & Revenue Revisions"):
+     with gr.Tab("EPS & Revenue Revisions"):
         gr.Markdown("### Compare EPS & Revenue Estimates")
         with gr.Row():
             from_date = gr.Dropdown(label="From Date", choices=dates, value=prior)
