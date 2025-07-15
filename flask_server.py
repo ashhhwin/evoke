@@ -22,7 +22,7 @@ def get_password_from_secret(secret_name: str) -> str:
     return response.payload.data.decode("UTF-8")
 
 USERNAME_SECRET_NAME = "EvokeInterns"  # The actual name of the secret
-USERNAME = "Evoke Interns"
+#USERNAME = "Evoke Interns"
 #PASSWORD = get_secret(PROJECT_ID,USERNAME_SECRET_NAME) 
 
 @app.before_request
@@ -55,10 +55,10 @@ def check_session_expiry():
 @app.route("/", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        entered_username = request.form["username"]
+        entered_username = request.form{USERNAME_SECRET_NAME}
         entered_password = request.form["password"]
         try:
-            actual_password = get_password_from_secret(entered_username)
+            actual_password = get_password_from_secret(USERNAME_SECRET_NAME)
             if entered_password == actual_password:
                 session.permanent = True
                 session["logged_in"] = True
