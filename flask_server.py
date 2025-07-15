@@ -7,6 +7,14 @@ from datetime import timedelta
 
 from gradio_app_new import app as gradio_app  # This is your big dashboard script
 
+app = Flask(__name__, template_folder="templates")
+app.secret_key = "ashwinramv"  # Replace with env/secret manager in production
+
+app.permanent_session_lifetime = timedelta(minutes=0.2)
+
+USERNAME = "admin"
+PASSWORD = "admin123"
+
 @app.before_request
 def check_session_expiry():
     session.permanent = True  # refresh timeout countdown
@@ -19,14 +27,6 @@ def check_session_expiry():
                 session.clear()
                 return redirect("/")
         session["last_seen"] = now
-
-app = Flask(__name__, template_folder="templates")
-app.secret_key = "ashwinramv"  # Replace with env/secret manager in production
-
-app.permanent_session_lifetime = timedelta(minutes=0.2)
-
-USERNAME = "admin"
-PASSWORD = "admin123"
 
 @app.route("/", methods=["GET", "POST"])
 def login():
