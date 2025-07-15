@@ -276,8 +276,8 @@ def plot_close_price_history(ticker: str):
         df = df.sort_values("Trade_Date")
         colors = ["green" if val >= 0 else "red" for val in df["Close_to_Close (%)"]]
         
-        start_date, end_date = get_date_range_from_steps(step_size, step_count)
-        df = df[(df["Trade_Date"].dt.date >= start_date) & (df["Trade_Date"].dt.date <= end_date)]
+        #start_date, end_date = get_date_range_from_steps(step_size, step_count)
+        #df = df[(df["Trade_Date"].dt.date >= start_date) & (df["Trade_Date"].dt.date <= end_date)]
 
         
         # Create subplot with shared x-axis
