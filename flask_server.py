@@ -3,7 +3,7 @@ from flask import g
 import threading
 import gradio as gr
 from datetime import timedelta, datetime, timezone
-
+from google.cloud import secretmanager
 from gradio_app_new import app as gradio_app  # This is your big dashboard script
 
 app = Flask(__name__, template_folder="templates")
@@ -11,8 +11,20 @@ app.secret_key = "ashwinramv"  # Replace with env/secret manager in production
 
 app.permanent_session_lifetime = timedelta(minutes=0.2)
 
-USERNAME = "admin"
-PASSWORD = "admin123"
+
+#USERNAME = "admin"
+#PASSWORD = "admin123"
+
+def get_secret(project_id: str, secret_id: str, version_id: str = "latest") -> str:
+    client = secretmanager.SecretManagerServiceClient()
+    name = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
+    response = client.access_secret_version(request={"name": name})
+    return response.payload.data.decode("UTF-8")
+
+USERNAME_SECRET_NAME = "EvokeInterns"  # The actual name of the secret
+USERNAME = "Evoke Interns"
+PROJECT_ID = "tonal-nucleus-464617-n2"
+PASSWORD = get_secret(PROJECT_ID,USERNAME_SECRET_NAME) 
 
 @app.before_request
 def check_session_expiry():
