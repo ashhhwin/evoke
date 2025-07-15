@@ -16,16 +16,24 @@ PASSWORD = "admin123"
 
 @app.before_request
 def check_session_expiry():
-    session.permanent = True  # refresh timeout countdown
+    session.permanent = True
     if "logged_in" in session:
-        now = datetime.now(timezone.utc).replace(tzinfo=None)  # 👈 naive UTC datetime
+        now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC
         if "last_seen" in session:
-            elapsed = now - session["last_seen"]
-            if elapsed > app.permanent_session_lifetime:
-                print("⌛ Session expired due to inactivity.")
+            try:
+                last_seen = session["last_seen"]
+                if isinstance(last_seen, str):
+                    last_seen = datetime.fromisoformat(last_seen)
+                elapsed = now - last_seen
+                if elapsed > app.permanent_session_lifetime:
+                    print("⌛ Session expired. Logging out.")
+                    session.clear()
+                    return redirect("/")
+            except Exception as e:
+                print("⚠️ Error checking session:", e)
                 session.clear()
                 return redirect("/")
-        session["last_seen"] = datetime.now(timezone.utc).replace(tzinfo=None)
+        session["last_seen"] = now.isoformat()
 
 @app.route("/", methods=["GET", "POST"])
 def login():
