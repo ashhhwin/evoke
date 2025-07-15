@@ -9,7 +9,7 @@ from gradio_app_new import app as gradio_app  # This is your big dashboard scrip
 app = Flask(__name__, template_folder="templates")
 app.secret_key = "ashwinramv"  # Replace with env/secret manager in production
 
-app.permanent_session_lifetime = timedelta(minutes=15)
+app.permanent_session_lifetime = timedelta(minutes=3)
 
 USERNAME = "admin"
 PASSWORD = "admin123"
