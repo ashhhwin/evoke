@@ -25,13 +25,11 @@ def login():
             return render_template("login.html", error="Invalid credentials")
     return render_template("login.html")
 
-@app.route("/dashboard")
+
 @app.route("/dashboard")
 def dashboard():
     if not session.get("logged_in"):
         return redirect("/")
-    
-    # Embed Gradio inside a protected page
     return render_template("dashboard.html")
 
 @app.route("/logout")
@@ -41,7 +39,7 @@ def logout():
 
 # Launch Gradio on 127.0.0.1:7869 in the background
 def run_gradio():
-    gradio_app.launch(server_name="0.0.0.0", server_port=7869)
+    gradio_app.launch(server_name="127.0.0.1", server_port=7869, show_error=True, share=False)
 
 # Start Gradio in background when Flask loads
 threading.Thread(target=run_gradio, daemon=True).start()
