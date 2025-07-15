@@ -2,10 +2,29 @@
 <html>
 <head>
     <title>Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        iframe {
+            width: 100%;
+            height: 90vh;
+            border: none;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
 </head>
 <body>
-    <h2>Welcome, admin!</h2>
-    <a href="/logout">Logout</a>
-    <iframe src="http://localhost:7869" width="100%" height="900px" style="border:none;"></iframe>
+    <div class="header">
+        <h2>Welcome, admin!</h2>
+        <a href="/logout">Logout</a>
+    </div>
+    <iframe src="http://localhost:7869"></iframe>
 </body>
 </html>
