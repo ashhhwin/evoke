@@ -2,7 +2,7 @@ from flask import Flask, request, redirect, url_for, session, render_template
 from flask import g
 import threading
 import gradio as gr
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 
 from gradio_app_new import app as gradio_app  # This is your big dashboard script
 
@@ -18,14 +18,14 @@ PASSWORD = "admin123"
 def check_session_expiry():
     session.permanent = True  # refresh timeout countdown
     if "logged_in" in session:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)  # 👈 naive UTC datetime
         if "last_seen" in session:
             elapsed = now - session["last_seen"]
             if elapsed > app.permanent_session_lifetime:
                 print("⌛ Session expired due to inactivity.")
                 session.clear()
                 return redirect("/")
-        session["last_seen"] = now
+        session["last_seen"] = datetime.now(timezone.utc).replace(tzinfo=None)
 
 @app.route("/", methods=["GET", "POST"])
 def login():
