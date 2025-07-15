@@ -1021,4 +1021,87 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
 
 
-app.launch(server_name="0.0.0.0", server_port=7869)
+#app.launch(server_name="0.0.0.0", server_port=7869)
+
+# flask authentication changes start here
+
+# ─────────────────────────────────────────────────────────────
+# 🛡️ Add this to the BOTTOM of your Gradio file (gradio_with_auth.py)
+# This enables login, session timeout, and gradio iframe embed.
+# ─────────────────────────────────────────────────────────────
+
+from flask import Flask, session, redirect, url_for, request, render_template_string
+import threading, time
+
+# Flask Auth Setup
+flask_app = Flask(__name__)
+flask_app.secret_key = "your_super_secret_key"  # Change this in production!
+SESSION_TIMEOUT = 1800  # 30 minutes (in seconds)
+
+def is_logged_in():
+    return session.get("logged_in") and (time.time() - session.get("last_active", 0)) < SESSION_TIMEOUT
+
+@flask_app.route("/", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        user = request.form.get("username")
+        pw = request.form.get("password")
+        if user == "admin" and pw == "password123":  # 🔐 Change credentials
+            session["logged_in"] = True
+            session["last_active"] = time.time()
+            return redirect("/dashboard")
+        else:
+            return render_template_string(LOGIN_TEMPLATE, error="Invalid credentials")
+    return render_template_string(LOGIN_TEMPLATE)
+
+@flask_app.route("/dashboard")
+def dashboard():
+    if not is_logged_in():
+        return redirect(url_for("login"))
+    session["last_active"] = time.time()  # refresh activity
+    return render_template_string(GRADIO_IFRAME_TEMPLATE)
+
+@flask_app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+LOGIN_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head><title>Login</title></head>
+<body style="font-family:Arial; background:#f5f5f5; padding:40px;">
+    <h2>🔐 Secure Login</h2>
+    <form method="post">
+        <label>Username: <input name="username"></label><br><br>
+        <label>Password: <input name="password" type="password"></label><br><br>
+        <input type="submit" value="Login">
+        {% if error %}<p style="color:red;">{{ error }}</p>{% endif %}
+    </form>
+</body>
+</html>
+"""
+
+GRADIO_IFRAME_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head><title>Market Dashboard</title></head>
+<body style="margin:0; padding:0;">
+    <div style="padding:10px; background:#000; color:#00ff9d; font-family:Arial;">
+        Logged in ✅ | <a href="/logout" style="color:red;">Logout</a>
+    </div>
+    <iframe src="http://localhost:7869" width="100%" height="1000px" frameBorder="0"></iframe>
+</body>
+</html>
+"""
+
+# Start Gradio in background thread
+def launch_gradio():
+    app.launch(server_name="0.0.0.0", server_port=7869, show_error=True, prevent_thread_lock=True)
+
+threading.Thread(target=launch_gradio).start()
+
+# Start Flask server
+flask_app.run(host="0.0.0.0", port=5000, debug=False)
+
+# end here
