@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+    <title>Login</title>
+    <style>
+        body { font-family: Arial; background: #111; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        form { background: #1e1e1e; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px #000; }
+        input { display: block; width: 100%; padding: 10px; margin: 10px 0; background: #333; border: none; color: white; }
+        button { padding: 10px; width: 100%; background: #00ff9d; border: none; color: black; font-weight: bold; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <form method="POST">
+        <h2>Login to Dashboard</h2>
+        {% if error %}
+            <p class="error">{{ error }}</p>
+        {% endif %}
+        <input type="text" name="username" placeholder="Username" required />
+        <input type="password" name="password" placeholder="Password" required />
+        <button type="submit">Login</button>
+    </form>
+</body>
+</html>
