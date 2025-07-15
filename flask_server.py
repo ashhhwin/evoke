@@ -35,7 +35,7 @@ def logout():
 
 # Launch Gradio on 127.0.0.1:7869 in the background
 def run_gradio():
-    gradio_app.launch(server_name="127.0.0.1", server_port=7869, show_error=True)
+    gradio_app.launch(server_name="0.0.0.0", server_port=7869)
 
 # Start Gradio in background when Flask loads
 threading.Thread(target=run_gradio, daemon=True).start()
