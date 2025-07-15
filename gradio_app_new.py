@@ -30,6 +30,20 @@ import io
 import time
 from google.cloud import storage
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
+
+def get_date_range_from_steps(step_size: str, step_count: int):
+    today = datetime.today()
+
+    if step_size == "1W":
+        delta = relativedelta(weeks=step_count)
+    elif step_size == "1M":
+        delta = relativedelta(months=step_count)
+    else:
+        raise ValueError("Invalid step_size. Use '1W' or '1M'.")
+    start_date = today - delta
+    return start_date.date(), today.date()
+
 
 def get_fixed_periods():
     today = pd.Timestamp.today()
@@ -256,12 +270,16 @@ def plot_close_price_history_plotly_without_subplots(ticker: str):
             go.Figure(layout_title_text=f"No volume data available: {e}")
         )
         
-def plot_close_price_history(ticker: str):
+def plot_close_price_history(ticker: str ,step_size: str = "1M", step_count: int = 1):
     try:
         df = load_historical_close_prices(ticker)
         df = df.sort_values("Trade_Date")
         colors = ["green" if val >= 0 else "red" for val in df["Close_to_Close (%)"]]
+        
+        start_date, end_date = get_date_range_from_steps(step_size, step_count)
+        df = df[(df["Trade_Date"].dt.date >= start_date) & (df["Trade_Date"].dt.date <= end_date)]
 
+        
         # Create subplot with shared x-axis
         fig = make_subplots(
             rows=2, cols=1,
@@ -309,6 +327,7 @@ def plot_close_price_history(ticker: str):
         # Layout
         fig.update_layout(
             height=800,
+            title_text=f"{ticker.upper()} | Close Price & Volume ({step_count} × {step_size} back)",
             showlegend=True,
             xaxis=dict(
                 title="Date"
@@ -880,11 +899,14 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         # Close price chart below
         #close_plot = gr.Plot(label="Close Price History")
         #volume_plot = gr.Plot(label="Volume ")
+        step_size_dropdown = gr.Dropdown(choices=["1W", "1M"], label="Step Size", value="1M")
+        step_count_slider = gr.Slider(minimum=1, maximum=12, step=1, label="Step Back Count", value=1)
         close_vol_plot = gr.Plot(label = " Close Price and Volume")
+        
         # Ticker snapshot info at the bottom
         ticker_info = gr.Textbox(label="Latest Ticker Snapshot", lines=30, interactive=False)
 
-        def update_all(ticker, mode):
+        def update_all(ticker, mode, step_size, step_count):
             try:
                 eps_fig, rev_fig = plot_eps_revenue(ticker, mode)
             except Exception as e:
@@ -896,7 +918,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
              #   price_fig = go.Figure(layout_title_text=f"Error loading price: {e}")
               #  vol_fig = go.Figure(layout_title_text=f"Error loading volume: {e}")
             try:
-                close_vol_fig = plot_close_price_history(ticker)
+                close_vol_fig = plot_close_price_volume_synced(ticker, step_size, step_count)
             except Exception as e:
                 close_vol_fig = go.Figure(layout_title_text=f"Error loading price/volume: {e}")
             try:
@@ -906,18 +928,43 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             #return eps_fig, rev_fig, price_fig, vol_fig, snapshot
             return eps_fig, rev_fig, close_vol_fig, snapshot
     
-        # Update all elements when ticker or type changes
-        ticker_dropdown.change(
+      # Update all elements when ticker or type changes
+            '''
+       # ticker_dropdown.change(
             fn=update_all,
             inputs=[ticker_dropdown, data_type],
             #outputs=[eps_plot, rev_plot, close_plot, volume_plot, ticker_info]
             outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info]
         )
 
-        data_type.change(
+        #data_type.change(
             fn=update_all,
             inputs=[ticker_dropdown, data_type],
             #outputs=[eps_plot, rev_plot, close_plot, volume_plot, ticker_info]
+            outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info]
+        )
+'''
+        ticker_dropdown.change(
+            fn=update_all,
+            inputs=[ticker_dropdown, data_type, step_size_dropdown, step_count_slider],
+            outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info]
+        )
+        
+        data_type.change(
+            fn=update_all,
+            inputs=[ticker_dropdown, data_type, step_size_dropdown, step_count_slider],
+            outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info]
+        )
+        
+        step_size_dropdown.change(
+            fn=update_all,
+            inputs=[ticker_dropdown, data_type, step_size_dropdown, step_count_slider],
+            outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info]
+        )
+        
+        step_count_slider.change(
+            fn=update_all,
+            inputs=[ticker_dropdown, data_type, step_size_dropdown, step_count_slider],
             outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info]
         )
 
@@ -1019,4 +1066,4 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             inputs=[from_cal, to_cal, ticker_input],
             outputs=[status_box, calendar_output]
         )
-## app.launch(server_name="0.0.0.0", server_port=7869)
+#app.launch(server_name="0.0.0.0", server_port=7869)
