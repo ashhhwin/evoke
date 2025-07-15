@@ -1090,10 +1090,21 @@ GRADIO_IFRAME_TEMPLATE = """
     <div style="padding:10px; background:#000; color:#00ff9d; font-family:Arial;">
         Logged in ✅ | <a href="/logout" style="color:red;">Logout</a>
     </div>
-    <iframe src="http://localhost:7869" width="100%" height="1000px" frameBorder="0"></iframe>
+    <iframe src="/gradio" width="100%" height="1000px" frameBorder="0"></iframe>
 </body>
 </html>
 """
+
+from flask import Response
+import requests
+
+@flask_app.route("/gradio")
+def proxy_gradio():
+    try:
+        r = requests.get("http://127.0.0.1:7869", timeout=3)
+        return Response(r.content, status=r.status_code, content_type=r.headers.get("Content-Type", "text/html"))
+    except Exception as e:
+        return f"<div style='color:red;'>Gradio not ready: {e}</div>"
 
 # Start Gradio in background thread
 def launch_gradio():
