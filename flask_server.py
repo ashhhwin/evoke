@@ -55,7 +55,7 @@ def check_session_expiry():
 @app.route("/", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        entered_username = request.form{USERNAME_SECRET_NAME}
+        #entered_username = request.form{USERNAME_SECRET_NAME}
         entered_password = request.form["password"]
         try:
             actual_password = get_password_from_secret(USERNAME_SECRET_NAME)
