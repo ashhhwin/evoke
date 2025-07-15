@@ -270,7 +270,7 @@ def plot_close_price_history_plotly_without_subplots(ticker: str):
             go.Figure(layout_title_text=f"No volume data available: {e}")
         )
         
-def plot_close_price_history(ticker: str ,step_size: str = "1M", step_count: int = 1):
+def plot_close_price_history(ticker: str):
     try:
         df = load_historical_close_prices(ticker)
         df = df.sort_values("Trade_Date")
