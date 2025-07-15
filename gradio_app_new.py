@@ -32,7 +32,8 @@ from google.cloud import storage
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
-
+GRADIO_TMP = "/home/ashwinram/friday/evoke/gradio_temp"
+os.makedirs(GRADIO_TMP, exist_ok=True)
 
 
 def get_fixed_periods():
