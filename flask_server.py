@@ -17,23 +17,29 @@ PASSWORD = "admin123"
 @app.before_request
 def check_session_expiry():
     session.permanent = True
+
+    # Bypass session checks for login page, static files, favicon, etc.
+    if request.path in ["/", "/favicon.ico"] or request.path.startswith("/static"):
+        return
+
     if "logged_in" in session:
-        now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC
-        if "last_seen" in session:
+        now = datetime.utcnow()
+        last_seen_str = session.get("last_seen")
+        if last_seen_str:
             try:
-                last_seen = session["last_seen"]
-                if isinstance(last_seen, str):
-                    last_seen = datetime.fromisoformat(last_seen)
-                elapsed = now - last_seen
-                if elapsed > app.permanent_session_lifetime:
+                last_seen = datetime.fromisoformat(last_seen_str)
+                if (now - last_seen) > app.permanent_session_lifetime:
                     print("⌛ Session expired. Logging out.")
                     session.clear()
                     return redirect("/")
             except Exception as e:
-                print("⚠️ Error checking session:", e)
+                print("⚠️ Failed to parse session timestamp:", e)
                 session.clear()
                 return redirect("/")
         session["last_seen"] = now.isoformat()
+    else:
+        # Not logged in at all
+        return redirect("/")
 
 @app.route("/", methods=["GET", "POST"])
 def login():
