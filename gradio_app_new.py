@@ -918,7 +918,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
              #   price_fig = go.Figure(layout_title_text=f"Error loading price: {e}")
               #  vol_fig = go.Figure(layout_title_text=f"Error loading volume: {e}")
             try:
-                close_vol_fig = plot_close_price_volume_synced(ticker, step_size, step_count)
+                close_vol_fig = plot_close_price_history(ticker, step_size, step_count)
             except Exception as e:
                 close_vol_fig = go.Figure(layout_title_text=f"Error loading price/volume: {e}")
             try:
