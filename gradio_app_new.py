@@ -20,6 +20,7 @@ from run_full_pipeline import (
 import datetime
 from gradio_calendar import Calendar
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import pandas as pd
 from compare_eps_revenue import list_available_dates, list_available_periods, compare_eps_revenue
 import os
@@ -28,6 +29,33 @@ import plotly.express as px
 import io
 import time
 from google.cloud import storage
+from datetime import datetime
+
+def get_fixed_periods():
+    today = pd.Timestamp.today()
+
+    # Define quarters
+    current_q = (today.month - 1) // 3 + 1
+    current_y = today.year
+
+    def quarter_str(q, y):
+        y_short = str(y)[-2:]  # Convert 2025 → "25"
+        return f"Q{q}-{y_short}"
+
+    # Build list
+    prev_q = quarter_str(current_q - 1 if current_q > 1 else 4, current_y if current_q > 1 else current_y - 1)
+    curr_q = quarter_str(current_q, current_y)
+    next_q = quarter_str(current_q + 1 if current_q < 4 else 1, current_y if current_q < 4 else current_y + 1)
+
+    return [
+        prev_q,
+        curr_q,
+        next_q,
+        str(current_y),
+        str(current_y + 1),
+        str(current_y + 2)
+    ]
+
 def read_csv_from_gcs(bucket_name, blob_path, max_retries=5, delay=2):
     """
     Read CSV from GCS with retry logic.
@@ -145,7 +173,7 @@ def run_both_pipelines():
     except Exception as e:
         return f"Failed: {e}"
        
-def plot_close_price_history(ticker: str):
+def plot_close_price_history_plotly_without_subplots(ticker: str):
     try:
         df = load_historical_close_prices(ticker)
         # Sort by date
@@ -227,6 +255,87 @@ def plot_close_price_history(ticker: str):
             go.Figure(layout_title_text=f"Error: {e}"),
             go.Figure(layout_title_text=f"No volume data available: {e}")
         )
+        
+def plot_close_price_history(ticker: str):
+    try:
+        df = load_historical_close_prices(ticker)
+        df = df.sort_values("Trade_Date")
+        colors = ["green" if val >= 0 else "red" for val in df["Close_to_Close (%)"]]
+
+        # Create subplot with shared x-axis
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.1,
+            row_heights=[0.5, 0.5],
+            subplot_titles=(f"{ticker.upper()} - Close Price", f"{ticker.upper()} - Volume + 14D/50D MAs")
+        )
+
+        # Row 1: Close Price
+        fig.add_trace(go.Scatter(
+            x=df["Trade_Date"],
+            y=df["P_Close"],
+            mode="lines+markers",
+            name="Close Price"
+        ), row=1, col=1)
+
+        # Row 2: Volume Bar
+        fig.add_trace(go.Bar(
+            x=df["Trade_Date"],
+            y=df["volume"],
+            name="Volume",
+            marker_color=colors
+        ), row=2, col=1)
+
+        # Row 2: 14D and 50D MA lines
+        if "V_14D_MA" in df.columns:
+            fig.add_trace(go.Scatter(
+                x=df["Trade_Date"],
+                y=df["V_14D_MA"],
+                name="14D MA Volume",
+                mode="lines",
+                line=dict(color="orange", dash="dash")
+            ), row=2, col=1)
+
+        if "V_50D_MA" in df.columns:
+            fig.add_trace(go.Scatter(
+                x=df["Trade_Date"],
+                y=df["V_50D_MA"],
+                name="50D MA Volume",
+                mode="lines",
+                line=dict(color="blue", dash="dot")
+            ), row=2, col=1)
+
+        # Layout
+        fig.update_layout(
+            height=800,
+            showlegend=True,
+            xaxis=dict(
+                title="Date"
+            ),
+            xaxis2=dict(
+                title="Date",
+                rangeselector=dict(
+                    buttons=list([
+                        dict(count=7, label="1W", step="day", stepmode="backward"),
+                        dict(count=30, label="1M", step="day", stepmode="backward"),
+                        dict(count=6, label="6M", step="month", stepmode="backward"),
+                        dict(count=12, label="1Y", step="month", stepmode="backward"),
+                        dict(step="all", label="All")
+                    ]),
+                    x=0.5,
+                    y=-0.2,
+                    xanchor='center',
+                    yanchor='top'
+                ),
+            ),
+            yaxis=dict(title="Close Price"),
+            yaxis2=dict(title="Volume")
+        )
+
+        return fig
+    except Exception as e:
+        return go.Figure(layout_title_text=f"Error: {e}")
 ## ashwin changes start here for excel workbook
 
 def load_df(filepath):
@@ -263,9 +372,9 @@ def transform_to_wrkbook(df):
 
     display_headers = (
         base_headers +
-        [""] + ["Revenue", "EPS"] +   # for 4 Weeks Ago
-        [""] + ["Revenue", "EPS"] +   # for Present
-        [""] + ["Revenue", "EPS"]     # for % Change
+        [""] + ["Revenue", "EPS"] +
+        [""] + ["Revenue", "EPS"] +
+        [""] + ["Revenue", "EPS"]
     )
 
     wb = Workbook()
@@ -319,23 +428,28 @@ def transform_to_wrkbook(df):
                 cell.value = None
             else:
                 value = row[data_idx]
-                cell.value = value
                 data_idx += 1
 
+                # Format logic
+                cell.value = value
                 if header == "Mkt. Cap":
-                    cell.number_format = '"$"#,##0.00'
+                    cell.number_format = '"$"#,##0'
                 elif header == "Float":
-                    cell.number_format = '0'
-                elif "Revenue" in header:
+                    cell.number_format = '#,##0'
+                elif "Revenue" in header and "%" not in header:
                     cell.number_format = '"$"#,##0'
-                elif "EPS" in header:
-                    cell.number_format = '"$"#,##0'
+                elif "EPS" in header and "%" not in header:
+                    cell.number_format = '"$"#,##0.00'
+                elif header in ["% Revenue", "% EPS"]:
+                    cell.number_format = '0.0%'
+                    if isinstance(cell.value, (int, float)):
+                        cell.value = cell.value / 100  # Convert 8.3 to 0.083
 
             cell.alignment = center_align
             cell.border = thin_border
 
-    max_col = ws.max_column
-    for col in range(1, max_col + 1):
+    # Style any remaining empty merged header cells
+    for col in range(1, ws.max_column + 1):
         cell = ws.cell(row=1, column=col)
         if cell.value is None:
             cell.fill = light_gray_fill
@@ -347,6 +461,7 @@ def transform_to_wrkbook(df):
         max_len = max(len(str(cell.value)) if cell.value else 0 for cell in col)
         ws.column_dimensions[get_column_letter(col[0].column)].width = max_len + 2
 
+    #wb.save("market_data_revisions_eps_revenue_comparison_2025-06-17_to_2025-07-10_for_Q3-25ashwinram.xlsx")
     return wb
 
 def generate_excel_from_comparison_csv(csv_filename: str) -> str:
@@ -358,6 +473,7 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     local_csv_path = f"/tmp/{csv_filename}"
 
     client = storage.Client()
+
     blob = client.bucket(bucket).blob(gcs_path)
 
     if not blob.exists():
@@ -377,8 +493,9 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
 
 
 
-def run_comparison(from_date, to_date, period):
-    import plotly.express as px
+def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
+    #added month=None
+    #added selected_caps = None
 
     safe_period = str(period).replace(' ', '').replace('/', '').replace('\\', '').replace(':', '')
     output_file = f"eps_revenue_comparison_{from_date}_to_{to_date}_for_{safe_period}.csv"
@@ -389,13 +506,36 @@ def run_comparison(from_date, to_date, period):
     #time.sleep(20)
     df = read_csv_from_gcs('historical_data_evoke', gcs_path)
     #df = read_csv_from_gcs('historical_data_evoke',f'market_data/revisions/{output_file}')
+    
     if df is None or df.empty:
         return None, "No data found for the selected options.", "", "", "", "", ""
-
+    
     df['eps_pct_change'] = pd.to_numeric(df['eps_pct_change'], errors='coerce')
     df['revenue_pct_change'] = pd.to_numeric(df['revenue_pct_change'], errors='coerce')
     df['MarketCapitalization'] = pd.to_numeric(df['MarketCapitalization'], errors='coerce')
+    df['Earnings_Date'] = pd.to_datetime(df['Earnings_Date'], errors='coerce')
 
+    if month and month != "All":
+        try:
+            month_num = datetime.strptime(month, "%B").month
+            df = df[df['Earnings_Date'].dt.month == month_num]
+        except ValueError:
+            pass 
+            
+    df = df.rename(columns={
+    'ticker': 'Symbol',
+    'Company_Name': 'Name',
+    'MarketCapitalization': 'Mkt. Cap',
+    'Shares_Float': 'Float',
+    'Earnings_Date': 'Earnings Date',
+    'prev_revenue_millions': 'Prev Revenue',
+    'prev_eps': 'Prev EPS',
+    'new_revenue_millions': 'New Revenue',
+    'new_eps': 'New EPS',
+    'revenue_pct_change': '% Revenue',
+    'eps_pct_change': '% EPS'
+    })
+    
     def categorize_market_cap(cap):
         if pd.isna(cap): return "Unknown"
         if cap >= 200000: return "Mega Cap"
@@ -404,9 +544,14 @@ def run_comparison(from_date, to_date, period):
         elif cap >= 250: return "Small Cap"
         elif cap >= 50: return "Micro Cap"
         else: return "Nano Cap"
+            
 
-    df['MarketCapCategory'] = df['MarketCapitalization'].apply(categorize_market_cap)
-    df = df[df['Sector'].notna() & df['Industry'].notna() & df['eps_pct_change'].notna() & df['revenue_pct_change'].notna()]
+    df['MarketCapCategory'] = df['Mkt. Cap'].apply(categorize_market_cap)
+    all_categories = ['Mega Cap', 'Large Cap', 'Mid Cap', 'Small Cap', 'Micro Cap', 'Nano Cap']
+    if selected_caps is None or len(selected_caps) == 0:
+        selected_caps = all_categories
+    df = df[df['MarketCapCategory'].isin(selected_caps)]
+    df = df[df['Sector'].notna() & df['Industry'].notna() & df['% EPS'].notna() & df['% Revenue'].notna()]
     df['count'] = 1
 
     color_scale = [
@@ -414,15 +559,15 @@ def run_comparison(from_date, to_date, period):
         [0.5, "white"], [0.75, "green"], [1.0, "blue"]
     ]
 
-    eps_grouped = df.groupby(['Sector', 'Industry']).agg({'eps_pct_change': 'mean', 'count': 'sum'}).reset_index()
+    eps_grouped = df.groupby(['Sector', 'Industry']).agg({'% EPS': 'mean', 'count': 'sum'}).reset_index()
     fig_eps = px.treemap(
         eps_grouped,
         path=['Sector', 'Industry'],
         values='count',
-        color='eps_pct_change',
+        color='% EPS',
         color_continuous_scale=color_scale,
         color_continuous_midpoint=0,
-        custom_data=['eps_pct_change'],
+        custom_data=['% EPS'],
         title='EPS % Change: Sector → Industry'
     )
     fig_eps.update_traces(
@@ -432,15 +577,15 @@ def run_comparison(from_date, to_date, period):
     )
     eps_plot = fig_eps
 
-    rev_grouped = df.groupby(['Sector', 'Industry']).agg({'revenue_pct_change': 'mean', 'count': 'sum'}).reset_index()
+    rev_grouped = df.groupby(['Sector', 'Industry']).agg({'% Revenue': 'mean', 'count': 'sum'}).reset_index()
     fig_rev = px.treemap(
         rev_grouped,
         path=['Sector', 'Industry'],
         values='count',
-        color='revenue_pct_change',
+        color='% Revenue',
         color_continuous_scale=color_scale,
         color_continuous_midpoint=0,
-        custom_data=['revenue_pct_change'],
+        custom_data=['% Revenue'],
         title='Revenue % Change: Sector → Industry'
     )
     fig_rev.update_traces(
@@ -449,11 +594,12 @@ def run_comparison(from_date, to_date, period):
         textposition='middle center'
     )
     rev_plot = fig_rev
-    top_eps_up = df.nlargest(10, 'eps_pct_change')[['ticker', 'Company_Name', 'eps_pct_change']]
-    top_eps_down = df.nsmallest(10, 'eps_pct_change')[['ticker', 'Company_Name', 'eps_pct_change']]
-    top_rev_up = df.nlargest(10, 'revenue_pct_change')[['ticker', 'Company_Name', 'revenue_pct_change']]
-    top_rev_down = df.nsmallest(10, 'revenue_pct_change')[['ticker', 'Company_Name', 'revenue_pct_change']]
+    top_eps_up = df.nlargest(10, '% EPS')[['Symbol', 'Name', 'Mkt. Cap','Prev EPS','New EPS','% EPS']]
+    top_eps_down = df.nsmallest(10, '% EPS')[['Symbol', 'Name','Mkt. Cap', 'Prev EPS','New EPS', '% EPS']]
+    top_rev_up = df.nlargest(10, '% Revenue')[['Symbol', 'Name','Mkt. Cap','Prev Revenue','New Revenue', '% Revenue']]
+    top_rev_down = df.nsmallest(10, '% Revenue')[['Symbol', 'Name','Mkt. Cap', 'Prev Revenue','New Revenue', '% Revenue']]
 
+    '''
     eps_movers_table = (
         "<h4>Top EPS Up</h4>" + top_eps_up.to_html(index=False, escape=False) +
         "<h4>Top EPS Down</h4>" + top_eps_down.to_html(index=False, escape=False)
@@ -462,12 +608,17 @@ def run_comparison(from_date, to_date, period):
         "<h4>Top Revenue Up</h4>" + top_rev_up.to_html(index=False, escape=False) +
         "<h4>Top Revenue Down</h4>" + top_rev_down.to_html(index=False, escape=False)
     )
+    '''
+    # Side-by-side EPS movers table
+    eps_movers_table = f"<div style='display: flex; gap: 40px; justify-content: space-between;'><div style='flex: 1'><h4>Top EPS Up</h4>{top_eps_up.to_html(index=False, escape=False)}</div><div style='flex: 1'><h4>Top EPS Down</h4>{top_eps_down.to_html(index=False, escape=False)}</div></div>"
+    rev_movers_table = f"<div style='display: flex; gap: 40px; justify-content: space-between;'><div style='flex: 1'><h4>Top Revenue Up</h4>{top_rev_up.to_html(index=False, escape=False)}</div><div style='flex: 1'><h4>Top Revenue Down</h4>{top_rev_down.to_html(index=False, escape=False)}</div></div>"
+    
 
     summary = {
-        'EPS Up': int((df['eps_pct_change'] > 0).sum()),
-        'EPS Down': int((df['eps_pct_change'] < 0).sum()),
-        'Revenue Up': int((df['revenue_pct_change'] > 0).sum()),
-        'Revenue Down': int((df['revenue_pct_change'] < 0).sum()),
+        'EPS Up': int((df['% EPS'] > 0).sum()),
+        'EPS Down': int((df['% EPS'] < 0).sum()),
+        'Revenue Up': int((df['% Revenue'] > 0).sum()),
+        'Revenue Down': int((df['% Revenue'] < 0).sum()),
     }
     summary_text = " \
     ".join(f"{k}: {v}" for k, v in summary.items())
@@ -484,11 +635,12 @@ dates = list_available_dates()
 latest = dates[-1] if dates else None
 prior = dates[-2] if len(dates) > 1 else None
 
-def get_periods_for_date(date):
-    return list_available_periods(date)
+#def get_periods_for_date(date):
+#    return list_available_periods(date)
 
 def update_periods(to_date):
-    periods = get_periods_for_date(to_date)
+    #periods = get_periods_for_date(to_date)
+    periods = get_fixed_periods()
     return gr.update(choices=periods, value=periods[0] if periods else None)
 
 def download_csv(file_path):
@@ -573,6 +725,103 @@ def load_news_from_gcs(date_str, ticker, keyword="", bucket_name="historical_dat
 
 ## ashwin changes end here
 
+## ashwin earnings changes start here
+
+from collections import defaultdict
+
+# Add this function below your existing utilities
+def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data_evoke"):
+    import datetime, json
+    from google.cloud import storage
+
+    from_dt = from_date.date() if isinstance(from_date, datetime.datetime) else datetime.datetime.strptime(str(from_date), "%Y-%m-%d").date()
+    to_dt = to_date.date() if isinstance(to_date, datetime.datetime) else datetime.datetime.strptime(str(to_date), "%Y-%m-%d").date()
+
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+
+    prefix = "market_data/earnings_calendar/2025-01-01_to_2025-12-01"
+    blobs = client.list_blobs(bucket_name, prefix=prefix)
+
+    all_entries = []
+
+    for blob in blobs:
+        if not blob.name.endswith(".json"):
+            continue
+        try:
+            content = blob.download_as_text()
+            parsed = json.loads(content)
+            for entry in parsed.get("earningsCalendar", []):
+                try:
+                    entry_date = datetime.datetime.strptime(entry["date"], "%Y-%m-%d").date()
+                except Exception as e:
+                    # print(f"❌ Bad date format in {blob.name}: {entry.get('date')}")
+                    continue
+
+                if from_dt <= entry_date <= to_dt:
+                    # print(f"✅ Matched: {entry['symbol']} for {entry['date']} from {blob.name}")
+                    all_entries.append(entry)
+        except Exception as e:
+            # print(f"Error reading {blob.name}: {e}")
+            continue
+
+    return all_entries
+
+
+def render_earnings_calendar(entries, ticker_filter=""):
+    import datetime
+    from collections import defaultdict
+
+    grouped = defaultdict(list)
+    for entry in entries:
+        if ticker_filter and ticker_filter.lower() not in entry["symbol"].lower():
+            continue
+        grouped[entry["date"]].append(entry)
+
+    grouped = dict(sorted(grouped.items(), key=lambda x: x[0]))
+    html = """
+    <div style='display: flex; flex-direction: row; overflow-x: auto; gap: 20px; padding: 10px 0;'>
+    """
+
+    today = datetime.date.today()
+
+    for date_str, items in grouped.items():
+        date_obj = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+        date_label = date_obj.strftime("%a, %b %d")
+        ticker_count = len(items)
+        header = f"{date_label} <span style='color:#888;'>({ticker_count} Earnings)</span>"
+        highlight = "border: 2px solid #00ff9d;" if date_obj == today else ""
+
+        block = f"""
+        <div style='min-width: 220px; max-width: 240px; background:#1e1e1e; padding:12px 14px; border-radius:8px; color:#eee; font-family:Inter, sans-serif; box-shadow: 0 0 4px #00000033; {highlight}'>
+            <h4 style='color:#00ff9d; font-weight:bold; border-bottom:1px solid #333; padding-bottom:6px; margin-bottom:10px;'>{header}</h4>
+        """
+
+        for e in items:
+            symbol = e.get("symbol", "—")
+            hour = e.get("hour", "tbd").upper()
+            if hour == "AMC":
+                timing = "After Market"
+            elif hour == "BMO":
+                timing = "Before Market"
+            else:
+                timing = "TBD"
+
+            block += f"""
+            <div style='padding:6px 0; border-bottom:1px dashed #444;'>
+                <div style='font-weight:bold;'>{symbol}</div>
+                <div style='font-size:0.85em; color:#aaa;'>{timing}</div>
+            </div>
+            """
+
+        block += "</div>"
+        html += block
+
+    html += "</div>"
+    return html if grouped else "<div style='color:red;'>No earnings found for selected range.</div>"
+
+## ashwin earnings changes end here
+
 with gr.Blocks(theme=gr.themes.Soft()) as app:
     gr.Markdown("<h1 style='text-align:center; color:#00ff9d;'>📈 Market Data Dashboard</h1>")
 
@@ -629,8 +878,9 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
         gr.Markdown("## View Close Price and Volume by Ticker")
         # Close price chart below
-        close_plot = gr.Plot(label="Close Price History")
-        volume_plot = gr.Plot(label="Volume ")
+        #close_plot = gr.Plot(label="Close Price History")
+        #volume_plot = gr.Plot(label="Volume ")
+        close_vol_plot = gr.Plot(label = " Close Price and Volume")
         # Ticker snapshot info at the bottom
         ticker_info = gr.Textbox(label="Latest Ticker Snapshot", lines=30, interactive=False)
 
@@ -640,28 +890,35 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             except Exception as e:
                 eps_fig = go.Figure(layout_title_text=f"Error loading EPS: {e}")
                 rev_fig = go.Figure(layout_title_text=f"Error loading Revenue: {e}")
+            #try:
+            #    price_fig, vol_fig = plot_close_price_history(ticker)
+            #except Exception as e:
+             #   price_fig = go.Figure(layout_title_text=f"Error loading price: {e}")
+              #  vol_fig = go.Figure(layout_title_text=f"Error loading volume: {e}")
             try:
-                price_fig, vol_fig = plot_close_price_history(ticker)
+                close_vol_fig = plot_close_price_history(ticker)
             except Exception as e:
-                price_fig = go.Figure(layout_title_text=f"Error loading price: {e}")
-                vol_fig = go.Figure(layout_title_text=f"Error loading volume: {e}")
+                close_vol_fig = go.Figure(layout_title_text=f"Error loading price/volume: {e}")
             try:
                 snapshot = display_latest_ticker_snapshot(ticker)
             except Exception as e:
                 snapshot = f"Error loading ticker snapshot: {e}"
-            return eps_fig, rev_fig, price_fig, vol_fig, snapshot
+            #return eps_fig, rev_fig, price_fig, vol_fig, snapshot
+            return eps_fig, rev_fig, close_vol_fig, snapshot
     
         # Update all elements when ticker or type changes
         ticker_dropdown.change(
             fn=update_all,
             inputs=[ticker_dropdown, data_type],
-            outputs=[eps_plot, rev_plot, close_plot, volume_plot, ticker_info]
+            #outputs=[eps_plot, rev_plot, close_plot, volume_plot, ticker_info]
+            outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info]
         )
 
         data_type.change(
             fn=update_all,
             inputs=[ticker_dropdown, data_type],
-            outputs=[eps_plot, rev_plot, close_plot, volume_plot, ticker_info]
+            #outputs=[eps_plot, rev_plot, close_plot, volume_plot, ticker_info]
+            outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info]
         )
 
     with gr.Tab("EPS & Revenue Revisions"):
@@ -669,7 +926,19 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         with gr.Row():
             from_date = gr.Dropdown(label="From Date", choices=dates, value=prior)
             to_date = gr.Dropdown(label="To Date", choices=dates, value=latest)
-        period = gr.Dropdown(label="Period", choices=get_periods_for_date(latest), value=get_periods_for_date(latest))
+        #period = gr.Dropdown(label="Period", choices=get_periods_for_date(latest), value=get_periods_for_date(latest))
+        fixed_periods = get_fixed_periods()
+        period = gr.Dropdown(label="Period", choices=fixed_periods, value=fixed_periods[1])  # Default: current quarter
+        months = [datetime(2000, m, 1).strftime("%B") for m in range(1, 13)]
+        month_dropdown = gr.Dropdown(label="Filter by Earnings Month", choices=['ALL']+months, value="ALL")
+
+        market_caps = ['Mega Cap', 'Large Cap', 'Mid Cap', 'Small Cap', 'Micro Cap', 'Nano Cap']
+        market_cap_dropdown = gr.CheckboxGroup(
+            choices=market_caps,
+            value=market_caps,  # All selected by default
+            label="Filter by Market Cap Category"
+        )
+        
         run_comparison_btn = gr.Button("Run Comparison")
         #output_file = gr.File(label="Download CSV", visible=False)
         status = gr.Textbox(label="Status", interactive=False)
@@ -681,9 +950,11 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
         gr.Markdown("### Top EPS Movers")
         eps_movers_table = gr.HTML()
-
+        #gr.HTML(eps_movers_table)
+        
         gr.Markdown("### Top Revenue Movers")
         rev_movers_table = gr.HTML()
+        #gr.HTML(rev_movers_table)
 
         gr.Markdown("### Summary of Revisions")
         summary_box = gr.Textbox(lines=8, interactive=False)
@@ -694,7 +965,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
         run_comparison_btn.click(
             fn=run_comparison,
-            inputs=[from_date, to_date, period],
+            inputs=[from_date, to_date, period, month_dropdown,market_cap_dropdown],
             outputs=[ status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box, excel_download]
         )
 
@@ -718,6 +989,34 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=news_output
         )
 
-##ashwin changes end here
-
-app.launch(server_name="0.0.0.0", server_port=7861)
+    ##ashwin changes end here
+    with gr.Tab("Earnings Calendar"):
+        gr.Markdown("## 📆 Upcoming Earnings Calendar")
+    
+        from datetime import date, timedelta
+        default_from = (date.today() - timedelta(days=2)).strftime("%Y-%m-%d")
+        default_to = (date.today() + timedelta(days=5)).strftime("%Y-%m-%d")
+    
+        with gr.Row():
+            from_cal = Calendar(label="From Date", value=default_from)
+            to_cal = Calendar(label="To Date", value=default_to)
+            ticker_input = gr.Textbox(label="Search Ticker (optional)", placeholder="e.g. AAPL, TSLA")
+    
+        load_btn = gr.Button("Load Calendar")
+        status_box = gr.Textbox(label="", interactive=False, visible=True, lines=1)
+        calendar_output = gr.HTML()
+    
+        def update_calendar(from_date, to_date, ticker_filter):
+            import datetime
+            entries = load_earnings_calendar_json(from_date, to_date)
+            filtered = [e for e in entries if not ticker_filter or ticker_filter.lower() in e['symbol'].lower()]
+            summary = f"✅ Loaded {len(filtered)} earnings from {len(entries)} entries ({from_date} to {to_date})"
+            
+            return summary, render_earnings_calendar(filtered, "")
+    
+        load_btn.click(
+            fn=update_calendar,
+            inputs=[from_cal, to_cal, ticker_input],
+            outputs=[status_box, calendar_output]
+        )
+## app.launch(server_name="0.0.0.0", server_port=7869)
