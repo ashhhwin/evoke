@@ -1,11 +1,15 @@
 from flask import Flask, request, redirect, url_for, session, render_template
 import threading
 import gradio as gr
+from datetime import timedelta
+
 
 from gradio_app_new import app as gradio_app  # This is your big dashboard script
 
 app = Flask(__name__, template_folder="templates")
-app.secret_key = "super-secret-key"  # Replace with env/secret manager in production
+app.secret_key = "ashwinramv"  # Replace with env/secret manager in production
+
+app.permanent_session_lifetime = timedelta(minutes=15)
 
 USERNAME = "admin"
 PASSWORD = "admin123"
