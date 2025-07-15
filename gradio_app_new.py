@@ -32,12 +32,6 @@ from google.cloud import storage
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
-GRADIO_TEMP_DIR = "/home/ashwinram/friday/evoke/gradio_temp"
-os.makedirs(GRADIO_TEMP_DIR, exist_ok=True)
-
-gr.utils.DEFAULT_TEMP_DIR = GRADIO_TEMP_DIR
-tempfile.tempdir = GRADIO_TEMP_DIR
-
 
 def get_fixed_periods():
     today = pd.Timestamp.today()
