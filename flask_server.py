@@ -18,6 +18,7 @@ PASSWORD = "admin123"
 def login():
     if request.method == "POST":
         if request.form["username"] == USERNAME and request.form["password"] == PASSWORD:
+            session.permanent = True  # <--- Add this
             session["logged_in"] = True
             return redirect("/dashboard")
         else:
