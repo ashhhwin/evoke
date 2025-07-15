@@ -1113,6 +1113,6 @@ def launch_gradio():
 threading.Thread(target=launch_gradio).start()
 
 # Start Flask server
-flask_app.run(host="0.0.0.0", port=5000, debug=False)
+flask_app.run(host="0.0.0.0", port=5001, debug=False)
 
 # end here
