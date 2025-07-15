@@ -635,11 +635,12 @@ dates = list_available_dates()
 latest = dates[-1] if dates else None
 prior = dates[-2] if len(dates) > 1 else None
 
-def get_periods_for_date(date):
-    return list_available_periods(date)
+#def get_periods_for_date(date):
+#    return list_available_periods(date)
 
 def update_periods(to_date):
-    periods = get_periods_for_date(to_date)
+    #periods = get_periods_for_date(to_date)
+    periods = get_fixed_periods()
     return gr.update(choices=periods, value=periods[0] if periods else None)
 
 def download_csv(file_path):
@@ -1010,7 +1011,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             entries = load_earnings_calendar_json(from_date, to_date)
             filtered = [e for e in entries if not ticker_filter or ticker_filter.lower() in e['symbol'].lower()]
             summary = f"✅ Loaded {len(filtered)} earnings from {len(entries)} entries ({from_date} to {to_date})"
-            # print(f"👀 Showing {len(filtered)} filtered entries")
+            
             return summary, render_earnings_calendar(filtered, "")
     
         load_btn.click(
@@ -1021,4 +1022,4 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
 
 
-## app.launch(server_name="0.0.0.0", server_port=7869)
+ app.launch(server_name="0.0.0.0", server_port=7869)
