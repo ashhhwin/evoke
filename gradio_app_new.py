@@ -35,6 +35,9 @@ from dateutil.relativedelta import relativedelta
 GRADIO_TMP = "/home/ashwinram/friday/evoke/gradio_temp"
 os.makedirs(GRADIO_TMP, exist_ok=True)
 
+gr.utils.DEFAULT_TEMP_DIR = GRADIO_TEMP_DIR
+tempfile.tempdir = GRADIO_TEMP_DIR
+
 
 def get_fixed_periods():
     today = pd.Timestamp.today()
