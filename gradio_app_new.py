@@ -32,17 +32,7 @@ from google.cloud import storage
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
-def get_date_range_from_steps(step_size: str, step_count: int):
-    today = datetime.today()
 
-    if step_size == "1W":
-        delta = relativedelta(weeks=step_count)
-    elif step_size == "1M":
-        delta = relativedelta(months=step_count)
-    else:
-        raise ValueError("Invalid step_size. Use '1W' or '1M'.")
-    start_date = today - delta
-    return start_date.date(), today.date()
 
 
 def get_fixed_periods():
@@ -327,7 +317,7 @@ def plot_close_price_history(ticker: str):
         # Layout
         fig.update_layout(
             height=800,
-            title_text=f"{ticker.upper()} | Close Price & Volume ({step_count} × {step_size} back)",
+            title_text=f"{ticker.upper()} | Close Price & Volume)",
             showlegend=True,
             xaxis=dict(
                 title="Date"
