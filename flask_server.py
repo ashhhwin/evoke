@@ -39,8 +39,9 @@ def check_session_expiry():
 def login():
     if request.method == "POST":
         if request.form["username"] == USERNAME and request.form["password"] == PASSWORD:
-            session.permanent = True  # <--- Add this
+            session.permanent = True
             session["logged_in"] = True
+            session["last_seen"] = datetime.utcnow().isoformat()  # ✅ add this line
             return redirect("/dashboard")
         else:
             return render_template("login.html", error="Invalid credentials")
