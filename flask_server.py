@@ -40,5 +40,3 @@ def run_gradio():
 # Start Gradio in background when Flask loads
 threading.Thread(target=run_gradio, daemon=True).start()
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
