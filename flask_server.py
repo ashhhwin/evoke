@@ -1,4 +1,5 @@
 from flask import Flask, request, redirect, url_for, session, render_template
+from flask import g
 import threading
 import gradio as gr
 from datetime import timedelta
@@ -6,10 +7,23 @@ from datetime import timedelta
 
 from gradio_app_new import app as gradio_app  # This is your big dashboard script
 
+@app.before_request
+def check_session_expiry():
+    session.permanent = True  # refresh timeout countdown
+    if "logged_in" in session:
+        now = datetime.utcnow()
+        if "last_seen" in session:
+            elapsed = now - session["last_seen"]
+            if elapsed > app.permanent_session_lifetime:
+                print("⌛ Session expired due to inactivity.")
+                session.clear()
+                return redirect("/")
+        session["last_seen"] = now
+
 app = Flask(__name__, template_folder="templates")
 app.secret_key = "ashwinramv"  # Replace with env/secret manager in production
 
-app.permanent_session_lifetime = timedelta(minutes=3)
+app.permanent_session_lifetime = timedelta(minutes=0.2)
 
 USERNAME = "admin"
 PASSWORD = "admin123"
@@ -28,8 +42,11 @@ def login():
 
 @app.route("/dashboard")
 def dashboard():
+    print("🔍 Checking login session for /dashboard...")
     if not session.get("logged_in"):
+        print("❌ Not logged in! Redirecting to /")
         return redirect("/")
+    print("✅ Logged in, rendering dashboard")
     return render_template("dashboard.html")
 
 @app.route("/logout")
