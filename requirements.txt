@@ -12,3 +12,4 @@ plotly
 google-cloud-storage 
 argparse
 flask
+gunicorn
