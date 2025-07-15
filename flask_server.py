@@ -26,12 +26,13 @@ def login():
     return render_template("login.html")
 
 @app.route("/dashboard")
+@app.route("/dashboard")
 def dashboard():
     if not session.get("logged_in"):
         return redirect("/")
-    # Instead of redirecting to localhost:7869 (which works only inside the VM),
-    # redirect the client browser to the full external IP and Gradio port
-    return redirect("http://34.162.66.126:7869")  # ⬅️ IMPORTANT: use external IP
+    
+    # Embed Gradio inside a protected page
+    return render_template("dashboard.html")
 
 @app.route("/logout")
 def logout():
