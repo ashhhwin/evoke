@@ -1,40 +1,51 @@
 import json
 from google.cloud import storage
+from pathlib import Path
 
 # CONFIG
 BUCKET_NAME = "historical_data_evoke"
 SOURCE_PREFIX = "market_data/earnings_calendar/2025-01-01_to_2025-12-01/"
+DEST_BLOB_NAME = "market_data/earnings_calendar/ALL_EARNINGS_2025.json"
 
-# Init GCS
+# TEMP LOCAL
+local_dir = Path("/tmp/earnings_merge")
+local_dir.mkdir(exist_ok=True)
+merged_path = local_dir / "ALL_EARNINGS_2025.json"
+
+# INIT GCS
 client = storage.Client()
 bucket = client.bucket(BUCKET_NAME)
 blobs = list(client.list_blobs(BUCKET_NAME, prefix=SOURCE_PREFIX))
 
-dot_tickers = {}
+all_earnings = []
 
-print(f"🔍 Scanning files in: {SOURCE_PREFIX}")
+print(f"📂 Found {len(blobs)} files in {SOURCE_PREFIX}")
+
 for blob in blobs:
     if not blob.name.endswith(".json"):
         continue
+
     try:
         content = blob.download_as_text()
         data = json.loads(content)
         entries = data.get("earningsCalendar", [])
-        for entry in entries:
-            symbol = entry.get("symbol", "")
-            if "." in symbol:
-                if symbol not in dot_tickers:
-                    dot_tickers[symbol] = []
-                dot_tickers[symbol].append(blob.name)
+        if isinstance(entries, list):
+            all_earnings.extend(entries)
+        else:
+            print(f"⚠️ Skipped malformed file: {blob.name}")
     except Exception as e:
-        print(f"⚠️ Error reading {blob.name}: {e}")
+        print(f"❌ Error processing {blob.name}: {e}")
 
-# Output
-if dot_tickers:
-    print(f"\n✅ Found {len(dot_tickers)} dotted tickers:\n")
-    for symbol, files in sorted(dot_tickers.items()):
-        print(f" - {symbol}:")
-        for f in files:
-            print(f"    📄 {f}")
-else:
-    print("✅ No tickers with '.' found.")
+print(f"✅ Merged {len(all_earnings)} earnings entries")
+
+# Save locally
+with open(merged_path, "w") as f:
+    json.dump({"earningsCalendar": all_earnings}, f, indent=2)
+
+print(f"💾 Saved merged file to: {merged_path}")
+
+# Upload to GCS
+dest_blob = bucket.blob(DEST_BLOB_NAME)
+dest_blob.upload_from_filename(str(merged_path))
+
+print(f"✅ Uploaded to GCS: {DEST_BLOB_NAME}")
