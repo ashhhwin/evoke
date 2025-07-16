@@ -496,7 +496,6 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
 
 '''
 
-
 def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     import os
     import tempfile
@@ -509,7 +508,7 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     client = storage.Client()
     bucket = client.bucket(bucket_name)
 
-    # ─── Step 1: Download CSV ───
+    # ─── Step 1: Download CSV to local temp file ───
     csv_blob = bucket.blob(gcs_csv_path)
     if not csv_blob.exists():
         raise FileNotFoundError(f"GCS file not found: {gcs_csv_path}")
@@ -518,27 +517,25 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
         local_csv_path = tmp_csv.name
         csv_blob.download_to_filename(local_csv_path)
 
-    # ─── Step 2: Convert to Excel ───
+    # ─── Step 2: Convert CSV → Excel ───
     df = load_df(local_csv_path)
     wb = transform_to_wrkbook(df)
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp_xlsx:
-        local_xlsx_path = tmp_xlsx.name
-        wb.save(local_xlsx_path)
+        local_excel_path = tmp_xlsx.name
+        wb.save(local_excel_path)
 
-    # ─── Step 3: Upload Excel ───
+    # ─── Step 3: Upload Excel to GCS ───
     excel_blob = bucket.blob(gcs_excel_path)
-    excel_blob.upload_from_filename(local_xlsx_path)
+    excel_blob.upload_from_filename(local_excel_path)
 
     # ─── Step 4: Clean up ───
     os.remove(local_csv_path)
-    os.remove(local_xlsx_path)
+    os.remove(local_excel_path)
 
-    # ─── Step 5: Return GCS URI ───
-    gcs_uri = f"gs://{bucket_name}/{gcs_excel_path}"
-    return gcs_uri
-
-
+    # ─── Step 5: Return gs:// URI (NOT used like a file path) ───
+    return f"gs://{bucket_name}/{gcs_excel_path}"
+    
 ## ashwin changes end here for excel workbook
 
 
