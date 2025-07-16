@@ -183,7 +183,7 @@ def load_historical_close_prices(ticker: str) -> pd.DataFrame:
 def load_historical_close_prices(ticker: str, bucket_name="historical_data_evoke", folder="Final_data_v2") -> pd.DataFrame:
     fs = gcsfs.GCSFileSystem()
     all_files = fs.ls(f"{bucket_name}/{folder}")
-    csv_files = [f for f in all_files if f.endswith(".csv")]
+    csv_files = [f.replace(f"{bucket_name}/", "") for f in all_files if f.endswith(".csv")]
 
     if not csv_files:
         raise FileNotFoundError(f"No CSV files found in gs://{bucket_name}/{folder}")
