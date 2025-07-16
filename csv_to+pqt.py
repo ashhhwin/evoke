@@ -13,47 +13,42 @@ def convert_all_csvs_to_parquet():
     for blob in blobs:
         if blob.name.endswith(".csv"):
             print(f"Processing: {blob.name}")
-
             try:
-                # TSV reader with proper header
                 csv_bytes = blob.download_as_bytes()
-                df = pd.read_csv(io.BytesIO(csv_bytes), sep="\t", low_memory=False)
-
-                # Clean column names
+                
+                # Step 1: Read TSV
+                df = pd.read_csv(io.BytesIO(csv_bytes), sep="\t", low_memory=False, dtype=str)
                 df.columns = df.columns.str.strip()
 
-                # Validate essential columns
-                if "Trade_Date" not in df.columns or "Symbol" not in df.columns:
-                    print(f"Skipping {blob.name}: missing Trade_Date or Symbol")
-                    continue
+                # Step 2: Drop any rows that repeat header (like last row)
+                df = df[df["Trade_Date"] != "Trade_Date"]
 
-                # Rename for downstream consistency
+                # Step 3: Strip whitespace and reset dtypes
+                df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+
+                # Step 4: Rename and convert date
                 df.rename(columns={"Trade_Date": "timestamp"}, inplace=True)
-
-                # Parse datetime
                 df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
 
-                # Identify columns to preserve as strings
-                string_cols = ["timestamp", "Symbol", "Company_Name", "Type", "Sector", "Industry", "Earnings_Date"]
+                # Step 5: Coerce numerics (but keep important string columns)
+                non_numeric_cols = ["timestamp", "Symbol", "Company_Name", "Type", "Sector", "Industry", "Earnings_Date"]
                 for col in df.columns:
-                    if col not in string_cols:
+                    if col not in non_numeric_cols:
                         df[col] = pd.to_numeric(df[col], errors="coerce")
 
-                # Drop fully empty rows
-                df.dropna(how="all", inplace=True)
+                df.dropna(subset=["timestamp", "Symbol"], inplace=True)
 
-                # Write to Parquet
+                # Step 6: Save as Parquet
                 parquet_buffer = io.BytesIO()
                 df.to_parquet(parquet_buffer, index=False)
                 parquet_buffer.seek(0)
 
-                # Upload to GCS
-                parquet_blob_name = blob.name.rsplit(".", 1)[0] + ".parquet"
-                bucket.blob(parquet_blob_name).upload_from_file(parquet_buffer, content_type="application/octet-stream")
-                print(f"✅ Uploaded: {parquet_blob_name}")
+                parquet_name = blob.name.replace(".csv", ".parquet")
+                bucket.blob(parquet_name).upload_from_file(parquet_buffer, content_type="application/octet-stream")
+                print(f"✅ Uploaded: {parquet_name}")
 
             except Exception as e:
-                print(f"❌ Failed on {blob.name}: {e}")
+                print(f"❌ Failed to process {blob.name}: {e}")
 
 if __name__ == "__main__":
     convert_all_csvs_to_parquet()
