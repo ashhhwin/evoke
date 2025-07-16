@@ -510,7 +510,8 @@ def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
     client = storage.Client()
     bucket = client.bucket("historical_data_evoke")
     blob = bucket.blob(gcs_path)
-
+    gcs_path = f'market_data/revisions/{output_file}'
+    
     if blob.exists():
         print("file exists")
         df = read_csv_from_gcs('historical_data_evoke', gcs_path)
