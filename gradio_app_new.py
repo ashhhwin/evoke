@@ -813,7 +813,7 @@ def load_news_from_gcs(date_str, ticker, keyword="", bucket_name="historical_dat
 from collections import defaultdict
 
 # Add this function below your existing utilities
-def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data_evoke"):
+def load_earnings_calendar_json_backup(from_date, to_date, bucket_name="historical_data_evoke"):
     import datetime, json
     from google.cloud import storage
 
@@ -850,6 +850,29 @@ def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data
 
     return all_entries
 
+def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data_evoke"):
+    import datetime, json
+    from google.cloud import storage
+
+    from_dt = from_date.date() if isinstance(from_date, datetime.datetime) else datetime.datetime.strptime(str(from_date), "%Y-%m-%d").date()
+    to_dt = to_date.date() if isinstance(to_date, datetime.datetime) else datetime.datetime.strptime(str(to_date), "%Y-%m-%d").date()
+
+    client = storage.Client()
+    blob = client.bucket(bucket_name).blob("market_data/earnings_calendar/ALL_EARNINGS_2025.json")
+    content = blob.download_as_text()
+    all_entries = json.loads(content).get("earningsCalendar", [])
+
+    # Filter for date
+    filtered = []
+    for e in all_entries:
+        try:
+            dt = datetime.datetime.strptime(e["date"], "%Y-%m-%d").date()
+            if from_dt <= dt <= to_dt:
+                filtered.append(e)
+        except:
+            continue
+
+    return filtered
 
 def render_earnings_calendar(entries, ticker_filter=""):
     import datetime
