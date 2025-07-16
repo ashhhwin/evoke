@@ -32,6 +32,18 @@ from google.cloud import storage
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
+def get_sa_credentials_from_secret(secret_id="JSON-SECRET", project_id="tonal-nucleus-464617-n2"):
+    client = secretmanager.SecretManagerServiceClient()
+    name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
+    response = client.access_secret_version(request={"name": name})
+    sa_key_data = response.payload.data.decode("UTF-8")
+
+    # Load service account credentials from JSON string
+    service_account_info = json.loads(sa_key_data)
+
+    credentials = service_account.Credentials.from_service_account_info(service_account_info)
+    return credentials
+    
 
 def get_fixed_periods():
     today = pd.Timestamp.today()
@@ -499,6 +511,7 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
 from google.cloud import storage
 from datetime import timedelta
 import os
+from google.oauth2 import service_account
 
 def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     # Define bucket and paths
@@ -507,35 +520,42 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     excel_filename = csv_filename.replace(".csv", ".xlsx")
     gcs_csv_path = f"{base_prefix}/{csv_filename}"
     gcs_excel_path = f"{base_prefix}/Excel Files/{excel_filename}"
-    
-    # Create client
-    client = storage.Client()
+
+    # Use credentials from Secret Manager
+    credentials = get_sa_credentials_from_secret()
+    client = storage.Client(credentials=credentials)
     bucket = client.bucket(bucket_name)
 
-    # Step 1: Download CSV from GCS to temp
+    # Step 1: Download CSV to temp
     local_csv_path = f"/tmp/{csv_filename}"
     blob = bucket.blob(gcs_csv_path)
     if not blob.exists():
         raise FileNotFoundError(f"CSV file not found: {gcs_csv_path}")
     blob.download_to_filename(local_csv_path)
 
-    # Step 2: Load and transform to Excel
+    # Step 2: Transform
     df = load_df(local_csv_path)
     wb = transform_to_wrkbook(df)
 
-    # Step 3: Save Excel to another temp file
+    # Step 3: Save Excel to temp
     local_excel_path = f"/tmp/{excel_filename}"
     wb.save(local_excel_path)
 
-    # Step 4: Upload Excel file to GCS (Excel Files/)
+    # Step 4: Upload Excel to GCS
     excel_blob = bucket.blob(gcs_excel_path)
     excel_blob.upload_from_filename(local_excel_path)
 
-    excel_blob.make_public()
-    public_url = excel_blob.public_url
-    html = f'<a href="{public_url}" target="_blank" download>📥 Download Excel Workbook</a>'
-    return html
+    # Step 5: Generate signed URL using explicit credentials
+    url = excel_blob.generate_signed_url(
+        credentials=credentials,
+        version="v4",
+        expiration=datetime.timedelta(minutes=15),
+        method="GET"
+    )
 
+    # Step 6: Return signed download link as HTML
+    html = f'<a href="{url}" target="_blank" download>📥 Download Excel Workbook</a>'
+    return html
 
 ## ashwin changes end here for excel workbook
 
