@@ -551,7 +551,7 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     url = excel_blob.generate_signed_url(
         credentials=credentials,
         version="v4",
-        expiration=datetime.timedelta(minutes=15),
+        expiration=timedelta(minutes=15),
         method="GET"
     )
 
