@@ -505,12 +505,22 @@ def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
 
     safe_period = str(period).replace(' ', '').replace('/', '').replace('\\', '').replace(':', '')
     output_file = f"eps_revenue_comparison_{from_date}_to_{to_date}_for_{safe_period}.csv"
-    compare_eps_revenue(from_date=from_date, to_date=to_date, quarters=[period] if period else None, output_file=output_file, annual=False)
-    #print("I AM HERE")
-    gcs_path = f'market_data/revisions/{output_file}'
-    #print(f"Reading from GCS path: {gcs_path}")
-    #time.sleep(20)
-    df = read_csv_from_gcs('historical_data_evoke', gcs_path)
+    ## checking logic here 
+
+    client = storage.Client()
+    bucket = client.bucket("historical_data_evoke")
+    blob = bucket.blob(gcs_path)
+
+    if blob.exists():
+        print("file exists")
+        df = read_csv_from_gcs('historical_data_evoke', gcs_path)
+        
+    ## checking logic ends here
+    else:
+        
+        compare_eps_revenue(from_date=from_date, to_date=to_date, quarters=[period] if period else None, output_file=output_file, annual=False)
+        gcs_path = f'market_data/revisions/{output_file}'
+        df = read_csv_from_gcs('historical_data_evoke', gcs_path)
     #df = read_csv_from_gcs('historical_data_evoke',f'market_data/revisions/{output_file}')
     
     if df is None or df.empty:
