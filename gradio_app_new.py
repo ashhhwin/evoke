@@ -1134,9 +1134,9 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             import datetime
             entries = load_earnings_calendar_json(from_date, to_date)
             filtered = [e for e in entries if not ticker_filter or ticker_filter.lower() in e['symbol'].lower()]
-            summary = f"✅ Loaded {len(filtered)} earnings from {len(entries)} entries ({from_date} to {to_date})"
+            #summary = f"✅ Loaded {len(filtered)} earnings from {len(entries)} entries ({from_date} to {to_date})"
             
-            #return summary, render_earnings_calendar(filtered, "")
+            return summary, render_earnings_calendar(filtered, "")
     
         load_btn.click(
             fn=update_calendar,
