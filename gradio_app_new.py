@@ -507,10 +507,11 @@ def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
     output_file = f"eps_revenue_comparison_{from_date}_to_{to_date}_for_{safe_period}.csv"
     ## checking logic here 
 
+    gcs_path = f'market_data/revisions/{output_file}'
     client = storage.Client()
     bucket = client.bucket("historical_data_evoke")
     blob = bucket.blob(gcs_path)
-    gcs_path = f'market_data/revisions/{output_file}'
+    
     
     if blob.exists():
         print("file exists")
