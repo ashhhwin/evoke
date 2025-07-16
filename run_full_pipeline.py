@@ -46,6 +46,14 @@ def read_csv_from_gcs(blob_path: str) -> pd.DataFrame:
     content = blob.download_as_text()
     return pd.read_csv(io.StringIO(content),infer_datetime_format=True,keep_default_na = False,na_values=[''])
 
+def read_pk_from_gcs(blob_path: str) -> pd.DataFrame:
+    client = storage.Client()
+    bucket = client.bucket(GCS_BUCKET)
+    blob = bucket.blob(blob_path)
+    content = blob.download_as_text()
+    return pd.read_parquet(io.StringIO(content),infer_datetime_format=True,keep_default_na = False,na_values=[''])
+
+
 def get_latest_transformed_folder():
     client = storage.Client()
     blobs = client.list_blobs(GCS_BUCKET, prefix="market_data/daily/")
@@ -183,13 +191,13 @@ def load_historical_close_prices(ticker: str) -> pd.DataFrame:
 def load_historical_close_prices(ticker: str, bucket_name="historical_data_evoke", folder="Final_data_v2") -> pd.DataFrame:
     fs = gcsfs.GCSFileSystem()
     all_files = fs.ls(f"{bucket_name}/{folder}")
-    csv_files = [f.replace(f"{bucket_name}/", "") for f in all_files if f.endswith(".csv")]
+    csv_files = [f.replace(f"{bucket_name}/", "") for f in all_files if f.endswith(".parquet")]
 
     if not csv_files:
-        raise FileNotFoundError(f"No CSV files found in gs://{bucket_name}/{folder}")
+        raise FileNotFoundError(f"No parquest files found in gs://{bucket_name}/{folder}")
 
     full_df = pd.concat(
-        [read_csv_from_gcs(f) for f in csv_files],
+        [read_pk_from_gcs(f) for f in csv_files],
         ignore_index=True
     )
 
