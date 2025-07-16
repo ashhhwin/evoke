@@ -531,18 +531,11 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     excel_blob = bucket.blob(gcs_excel_path)
     excel_blob.upload_from_filename(local_excel_path)
 
-    print(f"✅ Uploaded Excel to gs://{bucket_name}/{gcs_excel_path}")
-
-    # Step 5: Generate signed URL for download
-    signed_url = excel_blob.generate_signed_url(
-        version="v4",
-        expiration=timedelta(minutes=15),
-        method="GET",
-    )
-    
-    # Step 6: Return HTML anchor tag
-    html = f'<a href="{signed_url}" target="_blank" download>📥 Download Excel Workbook</a>'
+    excel_blob.make_public()
+    public_url = excel_blob.public_url
+    html = f'<a href="{public_url}" target="_blank" download>📥 Download Excel Workbook</a>'
     return html
+
 
 ## ashwin changes end here for excel workbook
 
