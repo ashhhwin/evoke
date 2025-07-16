@@ -15,6 +15,7 @@ from google.cloud import secretmanager
 from google.cloud import storage
 import io
 import os
+import gcfs # Anu's class
 GCS_BUCKET = "historical_data_evoke" 
 
 PROGRESS_LOG = Path("market_data/progress.log")
@@ -164,7 +165,7 @@ def run_historical_pipeline(start: str, end: str):
     except Exception as e:
         log_progress(f"Historical download failed: {e}")
         return f"Failed: {e}"  
-    
+'''   
 def load_historical_close_prices(ticker: str) -> pd.DataFrame:
     blob_path = "Final_data_1year.csv"
     df = read_csv_from_gcs(blob_path)
@@ -177,6 +178,31 @@ def load_historical_close_prices(ticker: str) -> pd.DataFrame:
         return df[existing_columns].dropna().sort_values("Trade_Date")
     else:
         raise ValueError(f"No data found for ticker '{ticker}' in {blob_path}")
+'''
+
+def load_historical_close_prices(ticker: str, bucket_name="historical_data_evoke", folder="Final_data_v2") -> pd.DataFrame:
+    fs = gcsfs.GCSFileSystem()
+    all_files = fs.ls(f"{bucket_name}/{folder}")
+    csv_files = [f for f in all_files if f.endswith(".csv")]
+
+    if not csv_files:
+        raise FileNotFoundError(f"No CSV files found in gs://{bucket_name}/{folder}")
+
+    full_df = pd.concat(
+        [read_csv_from_gcs(f) for f in csv_files],
+        ignore_index=True
+    )
+
+    df = full_df[full_df["Symbol"].str.upper() == ticker.upper()]
+
+    required_columns = ["Trade_Date", "P_Close", "volume", "Close_to_Close (%)", "V_14D_MA", "V_50D_MA"]
+    existing_columns = [col for col in required_columns if col in df.columns]
+
+    if not df.empty and existing_columns:
+        df["Trade_Date"] = pd.to_datetime(df["Trade_Date"], errors="coerce")
+        return df[existing_columns].dropna().sort_values("Trade_Date")
+    else:
+        raise ValueError(f"No data found for ticker '{ticker}' in any file from {folder}")
 
     
 def load_eps_revenue_changes() -> pd.DataFrame:
