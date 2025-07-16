@@ -490,6 +490,7 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     df = load_df(local_csv_path)
     wb = transform_to_wrkbook(df)
     excel_path = local_csv_path.replace(".csv", ".xlsx")
+    print(excel_path, " this is where its saving the excel file for download. change this to save in historical_data_evoke/market_data/revisions/Excel Files")
     wb.save(excel_path)
     return excel_path
 
