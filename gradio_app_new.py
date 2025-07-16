@@ -469,7 +469,7 @@ def transform_to_wrkbook(df):
 
     #wb.save("market_data_revisions_eps_revenue_comparison_2025-06-17_to_2025-07-10_for_Q3-25ashwinram.xlsx")
     return wb
-
+'''
 def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     import os
     from google.cloud import storage
@@ -494,6 +494,49 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     wb.save(excel_path)
     return excel_path
 
+'''
+
+
+def generate_excel_from_comparison_csv(csv_filename: str) -> str:
+    import os
+    import tempfile
+    from google.cloud import storage
+
+    bucket_name = "historical_data_evoke"
+    gcs_csv_path = f"market_data/revisions/{csv_filename}"
+    gcs_excel_path = f"market_data/revisions/Excel Files/{csv_filename.replace('.csv', '.xlsx')}"
+
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+
+    # ─── Step 1: Download CSV ───
+    csv_blob = bucket.blob(gcs_csv_path)
+    if not csv_blob.exists():
+        raise FileNotFoundError(f"GCS file not found: {gcs_csv_path}")
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp_csv:
+        local_csv_path = tmp_csv.name
+        csv_blob.download_to_filename(local_csv_path)
+
+    # ─── Step 2: Convert to Excel ───
+    df = load_df(local_csv_path)
+    wb = transform_to_wrkbook(df)
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp_xlsx:
+        local_xlsx_path = tmp_xlsx.name
+        wb.save(local_xlsx_path)
+
+    # ─── Step 3: Upload Excel ───
+    excel_blob = bucket.blob(gcs_excel_path)
+    excel_blob.upload_from_filename(local_xlsx_path)
+
+    # ─── Step 4: Clean up ───
+    os.remove(local_csv_path)
+    os.remove(local_xlsx_path)
+
+    # ─── Step 5: Return GCS URI ───
+    gcs_uri = f"gs://{bucket_name}/{gcs_excel_path}"
+    return gcs_uri
 
 
 ## ashwin changes end here for excel workbook
