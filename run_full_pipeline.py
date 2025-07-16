@@ -50,8 +50,8 @@ def read_pk_from_gcs(blob_path: str) -> pd.DataFrame:
     client = storage.Client()
     bucket = client.bucket(GCS_BUCKET)
     blob = bucket.blob(blob_path)
-    content = blob.download_as_text()
-    return pd.read_parquet(io.StringIO(content),infer_datetime_format=True,keep_default_na = False,na_values=[''])
+    content = blob.download_as_bytes()
+    return pd.read_parquet(io.BytesIO(content),infer_datetime_format=True,keep_default_na = False,na_values=[''])
 
 
 def get_latest_transformed_folder():
