@@ -15,7 +15,7 @@ from google.cloud import secretmanager
 from google.cloud import storage
 import io
 import os
-import gcfs # Anu's class
+import gcsfs # Anu's class
 GCS_BUCKET = "historical_data_evoke" 
 
 PROGRESS_LOG = Path("market_data/progress.log")
