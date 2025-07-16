@@ -120,7 +120,7 @@ def compare_eps_revenue(from_date=None, to_date=None, quarters=None, output_file
         blob = bucket.blob(gcs_path)
         if blob.exists():
             print(f"✅ Output file already exists in GCS: {gcs_path}")
-            return  # Skip recomputation — later function will use this CSV
+            return gcs_path # Skip recomputation — later function will use this CSV
 
     ## checking if it exists END
         
