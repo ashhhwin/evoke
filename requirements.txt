@@ -13,3 +13,4 @@ google-cloud-storage
 argparse
 flask
 gunicorn
+gcsfs
