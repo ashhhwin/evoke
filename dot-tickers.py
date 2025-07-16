@@ -3,26 +3,38 @@ from google.cloud import storage
 
 # CONFIG
 BUCKET_NAME = "historical_data_evoke"
-BLOB_PATH = "market_data/earnings_calendar/ALL_EARNINGS_2025.json"
+SOURCE_PREFIX = "market_data/earnings_calendar/2025-01-01_to_2025-12-01/"
 
-# Initialize GCS client
+# Init GCS
 client = storage.Client()
 bucket = client.bucket(BUCKET_NAME)
-blob = bucket.blob(BLOB_PATH)
+blobs = list(client.list_blobs(BUCKET_NAME, prefix=SOURCE_PREFIX))
 
-# Download and parse
-print(f"📥 Downloading: {BLOB_PATH}")
-content = blob.download_as_text()
-data = json.loads(content)
+dot_tickers = {}
 
-dot_tickers = set()
+print(f"🔍 Scanning files in: {SOURCE_PREFIX}")
+for blob in blobs:
+    if not blob.name.endswith(".json"):
+        continue
+    try:
+        content = blob.download_as_text()
+        data = json.loads(content)
+        entries = data.get("earningsCalendar", [])
+        for entry in entries:
+            symbol = entry.get("symbol", "")
+            if "." in symbol:
+                if symbol not in dot_tickers:
+                    dot_tickers[symbol] = []
+                dot_tickers[symbol].append(blob.name)
+    except Exception as e:
+        print(f"⚠️ Error reading {blob.name}: {e}")
 
-for entry in data.get("earningsCalendar", []):
-    symbol = entry.get("symbol", "")
-    if "." in symbol:
-        dot_tickers.add(symbol)
-
-# Output results
-print(f"\n🔍 Found {len(dot_tickers)} tickers with '.' in symbol:\n")
-for ticker in sorted(dot_tickers):
-    print(f" - {ticker}")
+# Output
+if dot_tickers:
+    print(f"\n✅ Found {len(dot_tickers)} dotted tickers:\n")
+    for symbol, files in sorted(dot_tickers.items()):
+        print(f" - {symbol}:")
+        for f in files:
+            print(f"    📄 {f}")
+else:
+    print("✅ No tickers with '.' found.")
