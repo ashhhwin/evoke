@@ -51,8 +51,10 @@ def read_pk_from_gcs(blob_path: str) -> pd.DataFrame:
     bucket = client.bucket(GCS_BUCKET)
     blob = bucket.blob(blob_path)
     content = blob.download_as_bytes()
-    return pd.read_parquet(io.BytesIO(content),infer_datetime_format=True,keep_default_na = False,na_values=[''])
-
+    df = pd.read_parquet(io.BytesIO(content))
+    if "Symbol" in df.columns:
+        df["Symbol"] = df["Symbol"].astype(str)
+    return df
 
 def get_latest_transformed_folder():
     client = storage.Client()
