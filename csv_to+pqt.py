@@ -15,19 +15,31 @@ def convert_all_csvs_to_parquet():
         if blob.name.endswith(".csv"):
             print(f"Processing: {blob.name}")
 
-            # Read CSV with low_memory=False to reduce dtype warnings
+            # Read CSV (low_memory=False for better dtype inference)
             csv_bytes = blob.download_as_bytes()
             df = pd.read_csv(io.BytesIO(csv_bytes), low_memory=False)
 
-            # Coerce numeric columns (object/str to float)
-            for col in df.columns:
-                if df[col].dtype == "object":
-                    try:
-                        df[col] = pd.to_numeric(df[col], errors="coerce")
-                    except Exception:
-                        pass  # If it fails, leave it as-is
+            # Clean column names
+            df.columns = df.columns.str.strip()
 
-            # Convert to Parquet
+            # Make sure required columns exist
+            required_cols = ["timestamp", "symbol"]
+            if not all(col in df.columns for col in required_cols):
+                print(f"Skipping {blob.name}: missing columns")
+                continue
+
+            # Convert timestamp column to datetime
+            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+
+            # Identify and convert only numeric columns
+            for col in df.columns:
+                if col not in ["timestamp", "symbol"]:  # preserve non-numeric
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+
+            # Drop fully empty rows if any
+            df.dropna(how="all", inplace=True)
+
+            # Save as Parquet
             parquet_buffer = io.BytesIO()
             df.to_parquet(parquet_buffer, index=False)
             parquet_buffer.seek(0)
@@ -36,6 +48,6 @@ def convert_all_csvs_to_parquet():
             parquet_blob_name = blob.name.rsplit(".", 1)[0] + ".parquet"
             bucket.blob(parquet_blob_name).upload_from_file(parquet_buffer, content_type="application/octet-stream")
             print(f"Uploaded: {parquet_blob_name}")
-
+            
 if __name__ == "__main__":
     convert_all_csvs_to_parquet()
