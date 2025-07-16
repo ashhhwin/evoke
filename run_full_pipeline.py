@@ -197,9 +197,12 @@ def load_historical_close_prices(ticker: str, bucket_name="historical_data_evoke
 
     required_columns = ["Trade_Date", "P_Close", "volume", "Close_to_Close (%)", "V_14D_MA", "V_50D_MA"]
     existing_columns = [col for col in required_columns if col in df.columns]
-
+    
     if not df.empty and existing_columns:
         df["Trade_Date"] = pd.to_datetime(df["Trade_Date"], errors="coerce")
+        for col in ["P_Close", "volume", "Close_to_Close (%)", "V_14D_MA", "V_50D_MA"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
         return df[existing_columns].dropna().sort_values("Trade_Date")
     else:
         raise ValueError(f"No data found for ticker '{ticker}' in any file from {folder}")
