@@ -643,6 +643,7 @@ def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
 
     ## ashwin change
     excel_path = generate_excel_from_comparison_csv(output_file)
+    print(excel_path)
 
     return "Comparison and insights complete.", eps_plot, rev_plot, eps_movers_table, rev_movers_table, summary_text, excel_path
 
