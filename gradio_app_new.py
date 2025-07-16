@@ -496,46 +496,54 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
 
 '''
 
+from google.cloud import storage
+from datetime import timedelta
+import os
+
 def generate_excel_from_comparison_csv(csv_filename: str) -> str:
-    import os
-    import tempfile
-    from google.cloud import storage
-
+    # Define bucket and paths
     bucket_name = "historical_data_evoke"
-    gcs_csv_path = f"market_data/revisions/{csv_filename}"
-    gcs_excel_path = f"market_data/revisions/Excel Files/{csv_filename.replace('.csv', '.xlsx')}"
-
+    base_prefix = "market_data/revisions"
+    excel_filename = csv_filename.replace(".csv", ".xlsx")
+    gcs_csv_path = f"{base_prefix}/{csv_filename}"
+    gcs_excel_path = f"{base_prefix}/Excel Files/{excel_filename}"
+    
+    # Create client
     client = storage.Client()
     bucket = client.bucket(bucket_name)
 
-    # ─── Step 1: Download CSV to local temp file ───
-    csv_blob = bucket.blob(gcs_csv_path)
-    if not csv_blob.exists():
-        raise FileNotFoundError(f"GCS file not found: {gcs_csv_path}")
+    # Step 1: Download CSV from GCS to temp
+    local_csv_path = f"/tmp/{csv_filename}"
+    blob = bucket.blob(gcs_csv_path)
+    if not blob.exists():
+        raise FileNotFoundError(f"CSV file not found: {gcs_csv_path}")
+    blob.download_to_filename(local_csv_path)
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp_csv:
-        local_csv_path = tmp_csv.name
-        csv_blob.download_to_filename(local_csv_path)
-
-    # ─── Step 2: Convert CSV → Excel ───
+    # Step 2: Load and transform to Excel
     df = load_df(local_csv_path)
     wb = transform_to_wrkbook(df)
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp_xlsx:
-        local_excel_path = tmp_xlsx.name
-        wb.save(local_excel_path)
+    # Step 3: Save Excel to another temp file
+    local_excel_path = f"/tmp/{excel_filename}"
+    wb.save(local_excel_path)
 
-    # ─── Step 3: Upload Excel to GCS ───
+    # Step 4: Upload Excel file to GCS (Excel Files/)
     excel_blob = bucket.blob(gcs_excel_path)
     excel_blob.upload_from_filename(local_excel_path)
 
-    # ─── Step 4: Clean up ───
-    os.remove(local_csv_path)
-    os.remove(local_excel_path)
+    print(f"✅ Uploaded Excel to gs://{bucket_name}/{gcs_excel_path}")
 
-    # ─── Step 5: Return gs:// URI (NOT used like a file path) ───
-    return f"gs://{bucket_name}/{gcs_excel_path}"
+    # Step 5: Generate signed URL for download
+    signed_url = excel_blob.generate_signed_url(
+        version="v4",
+        expiration=timedelta(minutes=15),
+        method="GET",
+    )
     
+    # Step 6: Return HTML anchor tag
+    html = f'<a href="{signed_url}" target="_blank" download>📥 Download Excel Workbook</a>'
+    return html
+
 ## ashwin changes end here for excel workbook
 
 
