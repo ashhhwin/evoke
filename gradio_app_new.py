@@ -1039,6 +1039,14 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
         to_date.change(fn=update_periods, inputs=[to_date], outputs=period)
 
+        excel_download = gr.HTML(label="Excel Workbook Download Link")
+
+        run_comparison_btn.click(
+            fn=run_comparison,
+            inputs=[from_date, to_date, period, month_dropdown, market_cap_dropdown],
+            outputs=[status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box, excel_download]
+        )
+    '''
         excel_download = gr.File(label="Download Excel Workbook", interactive=False)
 
         run_comparison_btn.click(
@@ -1046,7 +1054,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             inputs=[from_date, to_date, period, month_dropdown,market_cap_dropdown],
             outputs=[ status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box, excel_download]
         )
-
+'''
 ## ashwin changes start here
 
     with gr.Tab("Market News by Ticker"):
