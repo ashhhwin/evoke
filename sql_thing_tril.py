@@ -30,7 +30,7 @@ params = urllib.parse.quote_plus(
     f"DRIVER=ODBC Driver 17 for SQL Server;"
     f"SERVER={server},{port};"
     f"DATABASE={database};"
-    f"UID={username};PWD={password}"
+    f"UID={username};PWD={password};"
     f"Encrypt=no;"
     f"TrustServerCertificate=yes;"
 )
