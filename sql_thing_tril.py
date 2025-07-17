@@ -32,7 +32,9 @@ params = urllib.parse.quote_plus(
     f"DATABASE={database};"
     f"UID={username};PWD={password}"
     f"Encrypt=no;"
+    f"TrustServerCertificate=yes;"
 )
+
 engine = create_engine(f"mssql+pyodbc:///?odbc_connect={params}")
 
 # --- Upload to SQL Server ---
