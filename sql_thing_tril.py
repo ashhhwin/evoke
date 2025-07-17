@@ -31,6 +31,7 @@ params = urllib.parse.quote_plus(
     f"SERVER={server},{port};"
     f"DATABASE={database};"
     f"UID={username};PWD={password}"
+    f"Encrypt=no;"
 )
 engine = create_engine(f"mssql+pyodbc:///?odbc_connect={params}")
 
