@@ -6,7 +6,7 @@ import urllib
 # --- Config ---
 bucket = "historical_data_evoke"
 gcs_path = f"{bucket}/Final_data_v2"
-project = "your-gcp-project-id"
+project = "tonal-nucleus-464617-n2"
 
 # --- Get latest CSV from GCS ---
 fs = gcsfs.GCSFileSystem(project=project)
@@ -16,7 +16,7 @@ print(f"📂 Latest file: {latest_file}")
 
 with fs.open(latest_file, 'r') as f:
     df = pd.read_csv(f)
-
+df = df.head(100)
 print(f"✅ Loaded {len(df)} rows")
 
 # --- SQL Server connection ---
