@@ -16,7 +16,7 @@ print(f"📂 Latest file: {latest_file}")
 
 with fs.open(latest_file, 'r') as f:
     df = pd.read_csv(f)
-df = df.head(10000)
+df = df.head(100)
 print(f"✅ Loaded {len(df)} rows")
 
 # --- Column Cleanup ---
