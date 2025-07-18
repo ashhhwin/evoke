@@ -38,5 +38,6 @@ params = urllib.parse.quote_plus(
 engine = create_engine(f"mssql+pyodbc:///?odbc_connect={params}")
 
 # --- Upload to SQL Server ---
-df.to_sql("test1", engine, if_exists="append", index=False)
+#df.to_sql("test1", engine, if_exists="append", index=False)
+df.to_sql("Daily_Data", engine, if_exists="append", index=False)
 print("🚀 Upload complete!")
