@@ -9,13 +9,15 @@ bucket = "historical_data_evoke"
 gcs_path = f"{bucket}/Final_data_52w_cleaned"
 project = "tonal-nucleus-464617-n2"
 
+# --- Get latest file ---
 fs = gcsfs.GCSFileSystem(project=project)
 files = fs.ls(gcs_path)
 latest_file = sorted([f for f in files if f.endswith('.csv')])[-1]
 print(f"📂 Latest file: {latest_file}")
 
 with fs.open(latest_file, 'r') as f:
-    df = pd.read_csv(f)
+    df = pd.read_csv(f, low_memory=False)
+
 df = df.tail(100)
 print(f"✅ Loaded {len(df)} rows")
 
@@ -33,14 +35,18 @@ float_cols = [
 int_cols = ['Volume', 'Market_Cap', 'Shares_Out', 'Shares_Float']
 date_cols = ['Trade_Date', 'F52W_H_DATE', 'F52W_L_DATE', 'Earnings_Date']
 
+# Convert float columns
 for col in float_cols:
     if col in df.columns:
         df[col] = pd.to_numeric(df[col], errors='coerce').round(2)
 
+# Convert int columns with safe casting
 for col in int_cols:
     if col in df.columns:
-        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype('Int64')
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        df[col] = df[col].apply(lambda x: int(float(x)) if pd.notnull(x) else 0)
 
+# Convert dates to datetime.date (removes T00:00:00Z format)
 for col in date_cols:
     if col in df.columns:
         df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
@@ -63,7 +69,7 @@ params = urllib.parse.quote_plus(
 
 engine = create_engine(f"mssql+pyodbc:///?odbc_connect={params}")
 
-# --- Upload row by row to catch bad inserts ---
+# --- Upload row-by-row with error handling ---
 for i, row in df.iterrows():
     try:
         row_df = pd.DataFrame([row])
