@@ -73,7 +73,7 @@ engine = create_engine(f"mssql+pyodbc:///?odbc_connect={params}")
 for i, row in df.iterrows():
     try:
         row_df = pd.DataFrame([row])
-        row_df.to_sql("Daily_Data", engine, if_exists="append", index=False)
+        row_df.to_sql("Daily_Data_new", engine, if_exists="append", index=False)
     except Exception as e:
         print(f"❌ Row {i} failed: {e}")
         print(row)
