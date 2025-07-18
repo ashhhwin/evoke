@@ -11,7 +11,7 @@ project = "tonal-nucleus-464617-n2"
 # --- Get latest CSV from GCS ---
 fs = gcsfs.GCSFileSystem(project=project)
 files = fs.ls(gcs_path)
-latest_file = sorted([f for f in files if f.endswith('.csv')])[-1]
+latest_file = sorted([f for f in files if f.endswith('.csv')])[0]
 print(f"📂 Latest file: {latest_file}")
 
 with fs.open(latest_file, 'r') as f:
