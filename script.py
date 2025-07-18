@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+
+import gcsfs
 import os, time, shutil, logging, requests, json
 from datetime import date, timedelta, datetime
 from pathlib import Path
