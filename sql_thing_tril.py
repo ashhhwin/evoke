@@ -11,12 +11,12 @@ project = "tonal-nucleus-464617-n2"
 # --- Get latest CSV from GCS ---
 fs = gcsfs.GCSFileSystem(project=project)
 files = fs.ls(gcs_path)
-latest_file = sorted([f for f in files if f.endswith('.csv')])[0]
+latest_file = sorted([f for f in files if f.endswith('.csv')])[-1]
 print(f"📂 Latest file: {latest_file}")
 
 with fs.open(latest_file, 'r') as f:
     df = pd.read_csv(f)
-df = df.head(100)
+df = df.tail(10000)
 print(f"✅ Loaded {len(df)} rows")
 
 # --- SQL Server connection ---
