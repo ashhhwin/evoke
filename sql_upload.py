@@ -43,7 +43,7 @@ for col in int_cols:
 
 for col in date_cols:
     if col in df.columns:
-        df[col] = pd.to_datetime(df[col], errors='coerce')
+        df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
 
 # --- SQL Server Connection ---
 username = "sqlserver"
