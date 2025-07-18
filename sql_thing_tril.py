@@ -5,7 +5,7 @@ import urllib
 
 # --- Config ---
 bucket = "historical_data_evoke"
-gcs_path = f"{bucket}/Final_data_v2"
+gcs_path = f"{bucket}/Final_data_52w_cleaned"
 project = "tonal-nucleus-464617-n2"
 
 # --- Get latest CSV from GCS ---
