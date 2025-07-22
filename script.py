@@ -838,7 +838,8 @@ def detect_eps_revenue_changes():
         if write_header:
             writer.writeheader()
         writer.writerow(summary_row)
-
+#old function
+'''
 def run_pipelines_concurrently(tickers: List[str]):
     """
     Run EODHD and Finnhub pipelines concurrently using ThreadPoolExecutor
@@ -851,7 +852,31 @@ def run_pipelines_concurrently(tickers: List[str]):
         # Wait for both to complete
         eodhd_future.result()
         finnhub_future.result()
+'''
+#new function
+def run_pipelines_concurrently(tickers: List[str]):
+    success = True
+    error_messages = []
 
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = {
+            executor.submit(run_daily_bulk_download, tickers): "EODHD",
+            executor.submit(run_finnhub_data_pipeline, tickers): "FINNHUB"
+        }
+
+        for future in futures:
+            try:
+                future.result()
+            except Exception as e:
+                success = False
+                error_messages.append(f"{futures[future]} failed: {e}")
+                logger.exception(f"{futures[future]} pipeline failed")
+
+    update_cron_stats(success, error_msg="\n".join(error_messages) if error_messages else None)
+
+    if not success:
+        raise RuntimeError("One or more pipelines failed. See logs for details.")
+        
 # Helper to robustly load master_tickers_with_flags_types.csv
 
 def load_master_tickers(path: str = None) -> pd.DataFrame:
