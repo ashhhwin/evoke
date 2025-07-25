@@ -920,7 +920,8 @@ import sys
 if __name__ == "__main__":
     try:
         tickers = load_tickers(limit=None)
-        run_pipelines_concurrently(tickers)
+        run_daily_bulk_download(tickers)
+        #run_pipelines_concurrently(tickers)
         sys.exit(0)
     except:
         logger.error(f"Fatal error: {e}")
