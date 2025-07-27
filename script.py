@@ -343,7 +343,7 @@ def append_daily_chunk_to_latest(daily_chunk, date_column, bucket_name, final_da
 
 def run_daily_bulk_download(tickers: List[str]):
     
-    date_str = "2025-07-23"
+    date_str = "2025-07-24"
     today = datetime.strptime(date_str, "%Y-%m-%d").date()
     #today= date.today()
     #date_str = today.isoformat()
