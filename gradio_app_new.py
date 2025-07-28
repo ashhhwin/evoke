@@ -355,33 +355,33 @@ def plot_close_price_history(ticker: str):
         fig = make_subplots(
             rows=2, cols=1,
             shared_xaxes=True,
-            vertical_spacing=0.05,
+            vertical_spacing=0.03,
             row_heights=[0.45, 0.55],
-            subplot_titles=(
-                f"{ticker.upper()} - Close Price", 
+            subplot_titles=[
+                f"{ticker.upper()} - Close Price",
                 f"{ticker.upper()} - Volume + 14D/50D MAs"
-            )
+            ]
         )
 
-        # Row 1: Close Price
+        # Close Price Line
         fig.add_trace(go.Scatter(
             x=df["Trade_Date"],
             y=df["P_Close"],
             mode="lines+markers",
             name="Close Price",
-            marker=dict(size=5),
-            line=dict(color="blue")
+            line=dict(color="royalblue", width=2),
+            marker=dict(size=4)
         ), row=1, col=1)
 
-        # Row 2: Volume Bar
+        # Volume Bars
         fig.add_trace(go.Bar(
             x=df["Trade_Date"],
-            y=df["Volume"],
+            y=df["volume"],
             name="Volume",
             marker_color=colors
         ), row=2, col=1)
 
-        # MA Lines
+        # 14D MA
         if "V_14D_MA" in df.columns:
             fig.add_trace(go.Scatter(
                 x=df["Trade_Date"],
@@ -391,6 +391,7 @@ def plot_close_price_history(ticker: str):
                 line=dict(color="orange", dash="dash")
             ), row=2, col=1)
 
+        # 50D MA
         if "V_50D_MA" in df.columns:
             fig.add_trace(go.Scatter(
                 x=df["Trade_Date"],
@@ -400,16 +401,18 @@ def plot_close_price_history(ticker: str):
                 line=dict(color="blue", dash="dot")
             ), row=2, col=1)
 
-        # Layout cleanup
+        # Layout update
         fig.update_layout(
             height=850,
-            title_text=f"{ticker.upper()} | Close Price and Volume History",
-            showlegend=True,
-            plot_bgcolor="#f9f9f9",
+            title=dict(
+                text=f"{ticker.upper()} | Close Price and Volume History",
+                x=0.5,
+                font=dict(size=20)
+            ),
             xaxis=dict(
                 title="Date",
                 showgrid=True,
-                rangeslider=dict(visible=True),
+                showticklabels=True,
                 rangeselector=dict(
                     buttons=list([
                         dict(count=7, label="1W", step="day", stepmode="backward"),
@@ -418,20 +421,25 @@ def plot_close_price_history(ticker: str):
                         dict(count=12, label="1Y", step="month", stepmode="backward"),
                         dict(step="all", label="All")
                     ]),
-                    x=0,
-                    y=-0.25,  # Place below chart
-                    xanchor="left",
+                    x=0.5,
+                    y=1.2,
+                    xanchor="center",
                     yanchor="top"
                 ),
-                type="date"
+                type="date",
+                rangeslider=dict(visible=False)  # REMOVE SLIDER
             ),
             xaxis2=dict(
                 title="Date",
-                showgrid=True
+                showticklabels=True,
+                type="date"
             ),
-            yaxis=dict(title="Close Price", showgrid=True),
-            yaxis2=dict(title="Volume", showgrid=True),
-            margin=dict(l=50, r=30, t=80, b=80)
+            yaxis=dict(title="Close Price"),
+            yaxis2=dict(title="Volume"),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            margin=dict(l=60, r=30, t=70, b=70),
+            plot_bgcolor="#ffffff",
+            paper_bgcolor="#ffffff"
         )
 
         return fig
