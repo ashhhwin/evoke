@@ -343,19 +343,26 @@ def plot_close_price_history(ticker: str):
     except Exception as e:
         return go.Figure(layout_title_text=f"Error: {e}")
 '''
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+
 def plot_close_price_history(ticker: str):
     try:
         df = load_historical_close_prices(ticker)
         df = df.sort_values("Trade_Date")
 
-
+        # Set bar colors based on Close_Close
         colors = ["green" if val >= 0 else "red" for val in df["Close_Close"]]
 
-        # Create subplots with shared x-axis and vertical spacing
+        # Dynamic Close Price Line Color
+        start_price = df["P_Close"].iloc[0]
+        end_price = df["P_Close"].iloc[-1]
+        price_line_color = "green" if end_price >= start_price else "red"
+
         fig = make_subplots(
             rows=2, cols=1,
             shared_xaxes=True,
-            vertical_spacing=0.03,
+            vertical_spacing=0.04,
             row_heights=[0.45, 0.55],
             subplot_titles=[
                 f"{ticker.upper()} - Close Price",
@@ -363,17 +370,17 @@ def plot_close_price_history(ticker: str):
             ]
         )
 
-        # Close Price Line
+        # Close Price Plot
         fig.add_trace(go.Scatter(
             x=df["Trade_Date"],
             y=df["P_Close"],
             mode="lines+markers",
             name="Close Price",
-            line=dict(color="royalblue", width=2),
+            line=dict(color=price_line_color, width=2),
             marker=dict(size=4)
         ), row=1, col=1)
 
-        # Volume Bars
+        # Volume Bar Chart
         fig.add_trace(go.Bar(
             x=df["Trade_Date"],
             y=df["Volume"],
@@ -381,7 +388,7 @@ def plot_close_price_history(ticker: str):
             marker_color=colors
         ), row=2, col=1)
 
-        # 14D MA
+        # Moving Averages if present
         if "V_14D_MA" in df.columns:
             fig.add_trace(go.Scatter(
                 x=df["Trade_Date"],
@@ -391,7 +398,6 @@ def plot_close_price_history(ticker: str):
                 line=dict(color="orange", dash="dash")
             ), row=2, col=1)
 
-        # 50D MA
         if "V_50D_MA" in df.columns:
             fig.add_trace(go.Scatter(
                 x=df["Trade_Date"],
@@ -401,43 +407,41 @@ def plot_close_price_history(ticker: str):
                 line=dict(color="blue", dash="dot")
             ), row=2, col=1)
 
-        # Layout update
+        # Layout Styling
         fig.update_layout(
             height=850,
             title=dict(
                 text=f"{ticker.upper()} | Close Price and Volume History",
                 x=0.5,
+                y=0.95,
                 font=dict(size=20)
             ),
             xaxis=dict(
                 title="Date",
-                showgrid=True,
                 showticklabels=True,
+                showgrid=True,
+                type="date",
                 rangeselector=dict(
-                    buttons=list([
+                    buttons=[
                         dict(count=7, label="1W", step="day", stepmode="backward"),
                         dict(count=30, label="1M", step="day", stepmode="backward"),
-                        dict(count=6, label="6M", step="month", stepmode="backward"),
-                        dict(count=12, label="1Y", step="month", stepmode="backward"),
+                        dict(count=90, label="3M", step="day", stepmode="backward"),
+                        dict(count=180, label="6M", step="day", stepmode="backward"),
+                        dict(count=365, label="1Y", step="day", stepmode="backward"),
                         dict(step="all", label="All")
-                    ]),
-                    x=0.5,
+                    ],
+                    x=0,
                     y=1.2,
-                    xanchor="center",
+                    xanchor="left",
                     yanchor="top"
                 ),
-                type="date",
-                rangeslider=dict(visible=False)  # REMOVE SLIDER
+                rangeslider=dict(visible=False)
             ),
-            xaxis2=dict(
-                title="Date",
-                showticklabels=True,
-                type="date"
-            ),
+            xaxis2=dict(title="Date", type="date", showticklabels=True),
             yaxis=dict(title="Close Price"),
             yaxis2=dict(title="Volume"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(l=60, r=30, t=70, b=70),
+            legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
+            margin=dict(l=60, r=30, t=90, b=70),
             plot_bgcolor="#ffffff",
             paper_bgcolor="#ffffff"
         )
@@ -446,6 +450,7 @@ def plot_close_price_history(ticker: str):
 
     except Exception as e:
         return go.Figure(layout_title_text=f"Error: {e}")
+
 
 ## ashwin changes start here for excel workbook
 
