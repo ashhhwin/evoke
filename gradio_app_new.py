@@ -376,7 +376,7 @@ def plot_close_price_history(ticker: str):
         # Volume Bars
         fig.add_trace(go.Bar(
             x=df["Trade_Date"],
-            y=df["volume"],
+            y=df["Volume"],
             name="Volume",
             marker_color=colors
         ), row=2, col=1)
