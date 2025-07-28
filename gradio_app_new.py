@@ -359,18 +359,21 @@ def plot_close_price_history(ticker: str):
         end_price = df["P_Close"].iloc[-1]
         price_line_color = "green" if end_price >= start_price else "red"
 
+        # Create subplots with 3 rows (middle row is gap for selector)
         fig = make_subplots(
-            rows=2, cols=1,
+            rows=3, cols=1,
             shared_xaxes=True,
-            vertical_spacing=0.04,
-            row_heights=[0.45, 0.55],
+            vertical_spacing=0.10,  # Add space for gap
+            row_heights=[0.45, 0.05, 0.50],
+            specs=[[{}], [{}], [{}]],
             subplot_titles=[
                 f"{ticker.upper()} - Close Price",
+                "",  # No title for gap
                 f"{ticker.upper()} - Volume + 14D/50D MAs"
             ]
         )
 
-        # Close Price Plot
+        # Row 1: Close Price
         fig.add_trace(go.Scatter(
             x=df["Trade_Date"],
             y=df["P_Close"],
@@ -380,15 +383,23 @@ def plot_close_price_history(ticker: str):
             marker=dict(size=4)
         ), row=1, col=1)
 
-        # Volume Bar Chart
+        # Row 2: dummy transparent trace with range selector only
+        fig.add_trace(go.Scatter(
+            x=df["Trade_Date"],
+            y=[None]*len(df),
+            mode="lines",
+            showlegend=False,
+            hoverinfo='skip'
+        ), row=2, col=1)
+
+        # Row 3: Volume bars and MA lines
         fig.add_trace(go.Bar(
             x=df["Trade_Date"],
             y=df["Volume"],
             name="Volume",
             marker_color=colors
-        ), row=2, col=1)
+        ), row=3, col=1)
 
-        # Moving Averages if present
         if "V_14D_MA" in df.columns:
             fig.add_trace(go.Scatter(
                 x=df["Trade_Date"],
@@ -396,7 +407,7 @@ def plot_close_price_history(ticker: str):
                 name="14D MA Volume",
                 mode="lines",
                 line=dict(color="orange", dash="dash")
-            ), row=2, col=1)
+            ), row=3, col=1)
 
         if "V_50D_MA" in df.columns:
             fig.add_trace(go.Scatter(
@@ -405,22 +416,26 @@ def plot_close_price_history(ticker: str):
                 name="50D MA Volume",
                 mode="lines",
                 line=dict(color="blue", dash="dot")
-            ), row=2, col=1)
+            ), row=3, col=1)
 
-        # Layout Styling
+        # Layout: add selector only on xaxis2 (the dummy row)
         fig.update_layout(
-            height=850,
+            height=900,
             title=dict(
                 text=f"{ticker.upper()} | Close Price and Volume History",
                 x=0.5,
                 y=0.95,
                 font=dict(size=20)
             ),
-            xaxis=dict(
+            xaxis=dict(  # Top plot
                 title="Date",
                 showticklabels=True,
                 showgrid=True,
                 type="date",
+            ),
+            xaxis2=dict(  # Selector only row
+                showticklabels=False,
+                showgrid=False,
                 rangeselector=dict(
                     buttons=[
                         dict(count=7, label="1W", step="day", stepmode="backward"),
@@ -430,17 +445,23 @@ def plot_close_price_history(ticker: str):
                         dict(count=365, label="1Y", step="day", stepmode="backward"),
                         dict(step="all", label="All")
                     ],
-                    x=0,
-                    y=1.2,
-                    xanchor="left",
-                    yanchor="top"
+                    x=0.5,
+                    y=0.2,
+                    xanchor="center",
+                    yanchor="bottom"
                 ),
-                rangeslider=dict(visible=False)
+                rangeslider=dict(visible=False),
+                type="date"
             ),
-            xaxis2=dict(title="Date", type="date", showticklabels=True),
+            xaxis3=dict(  # Bottom plot
+                title="Date",
+                showticklabels=True,
+                showgrid=True,
+                type="date"
+            ),
             yaxis=dict(title="Close Price"),
-            yaxis2=dict(title="Volume"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
+            yaxis3=dict(title="Volume"),
+            legend=dict(orientation="h", yanchor="bottom", y=1.03, xanchor="right", x=1),
             margin=dict(l=60, r=30, t=90, b=70),
             plot_bgcolor="#ffffff",
             paper_bgcolor="#ffffff"
