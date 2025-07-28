@@ -188,9 +188,9 @@ def load_historical_close_prices(ticker: str) -> pd.DataFrame:
         return df[existing_columns].dropna().sort_values("Trade_Date")
     else:
         raise ValueError(f"No data found for ticker '{ticker}' in {blob_path}")
-'''
 
-def load_historical_close_prices(ticker: str, bucket_name="historical_data_evoke", folder="Final_data_v2") -> pd.DataFrame:
+
+def load_historical_close_prices(ticker: str, bucket_name="historical_data_evoke", folder="Final_data_parquet") -> pd.DataFrame:
     fs = gcsfs.GCSFileSystem()
     all_files = fs.ls(f"{bucket_name}/{folder}")
     csv_files = [f.replace(f"{bucket_name}/", "") for f in all_files if f.endswith(".parquet")]
@@ -216,8 +216,34 @@ def load_historical_close_prices(ticker: str, bucket_name="historical_data_evoke
         return df[existing_columns].dropna().sort_values("Trade_Date")
     else:
         raise ValueError(f"No data found for ticker '{ticker}' in any file from {folder}")
+'''
+def load_historical_close_prices(ticker: str, bucket_name="historical_data_evoke", folder="Final_data_parquet") -> pd.DataFrame:
+    fs = gcsfs.GCSFileSystem()
+    all_files = fs.ls(f"{bucket_name}/{folder}")
+    parquet_files = [f.replace(f"{bucket_name}/", "") for f in all_files if f.endswith(".parquet")]
 
-    
+    if not parquet_files:
+        raise FileNotFoundError(f"No parquet files found in gs://{bucket_name}/{folder}")
+
+    full_df = pd.concat(
+        [read_pk_from_gcs(f) for f in parquet_files],
+        ignore_index=True
+    )
+
+    df = full_df[full_df["Symbol"].str.upper() == ticker.upper()]
+
+    required_columns = ["Trade_Date", "P_Close", "volume", "Close_to_Close (%)", "V_14D_MA", "V_50D_MA"]
+    existing_columns = [col for col in required_columns if col in df.columns]
+
+    if not df.empty and existing_columns:
+        df["Trade_Date"] = pd.to_datetime(df["Trade_Date"], errors="coerce")
+        for col in ["P_Close", "volume", "Close_to_Close (%)", "V_14D_MA", "V_50D_MA"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        return df[existing_columns].dropna().sort_values("Trade_Date")
+    else:
+        raise ValueError(f"No data found for ticker '{ticker}' in any file from {folder}")
+
 def load_eps_revenue_changes() -> pd.DataFrame:
     blob_path = "market_data/eps_revenue_changes.csv"
     try:
