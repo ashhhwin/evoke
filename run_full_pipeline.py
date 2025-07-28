@@ -232,7 +232,7 @@ def load_historical_close_prices(ticker: str, bucket_name="historical_data_evoke
 
     df = full_df[full_df["Symbol"].str.upper() == ticker.upper()]
 
-    required_columns = ["Trade_Date", "P_Close", "volume", "Close_to_Close (%)", "V_14D_MA", "V_50D_MA"]
+    required_columns = ["Trade_Date", "P_Close", "Volume", "Close_Close", "V_14D_MA", "V_50D_MA"]
     existing_columns = [col for col in required_columns if col in df.columns]
 
     if not df.empty and existing_columns:
