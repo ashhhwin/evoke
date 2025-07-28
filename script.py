@@ -125,7 +125,7 @@ def get_previous_trading_day(today: date) -> Optional[date]:
     
 def process_chunk(chunk):
     if 'MarketCapitalization' in chunk.columns:
-        chunk['MarketCapitalization'] = pd.to_numeric(chunk['MarketCapitalization'], errors='coerce').round(0).astype('Int64')
+        chunk['MarketCapitalization'] = pd.to_numeric(chunk['MarketCapitalization'], errors='coerce').round(2)
     if 'volume' in chunk.columns:
         chunk['volume'] = pd.to_numeric(chunk['volume'], errors='coerce').round(0).astype('Int64')
     exclude = ['MarketCapitalization', 'volume']
@@ -467,7 +467,7 @@ def run_daily_bulk_download(tickers: List[str]):
     log_progress(f"✅ EODHD data pipeline complete for {date_str}")
     log_progress(f" Merging {date_str} with the historical data")
     final_df = process_chunk(final_df)
-    append_daily_chunk_to_latest(daily_chunk=final_df,date_column="Trade_Date",bucket_name="historical_data_evoke",final_data_folder="Final_data_v2",base_name="eodhd_",max_rows=1_000_000)
+    append_daily_chunk_to_latest(daily_chunk=final_df,date_column="Trade_Date",bucket_name="historical_data_evoke",final_data_folder="Final_data_sql",base_name="eodhd_",max_rows=1_000_000)
     log_progress(f"✅ EODHD data pipeline completed mergeing for {date_str}")
 
 
