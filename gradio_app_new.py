@@ -146,13 +146,13 @@ def display_latest_ticker_snapshot(ticker: str):
         row = load_latest_eodhd_merged(ticker)
 
         display_keys = [
-        "Trade_Date", "Symbol", "Company_Name", "Sector", "Industry", "MarketCapitalization", "Beta",
-        "P_Open", "P_High", "P_Low", "P_Close", "volume", "Prev_Close (Price)",
-        "P_50D_MA", "P_200D_MA", "V_14D_MA", "V_50D_MA", "Options", "hi_250d", "lo_250d",
-        "Close_to_Open (% from Prev Day Close)", "Open_Close (%)", "High_Close(%)", "Low_Close(%)",
-        "Close_to_Close (%)", "Shares_Out", "Shares_Float", "Short_Ratio", "Short_Percent_Float",
-        "Earnings_Date", "Shares_Insiders", "Shares_Institutions"
-
+            "Trade_Date", "Symbol", "Company_Name", "Type", "Sector", "Industry",
+            "Market_Cap", "Beta", "P_Open", "P_High", "P_Low", "P_Close", "Volume",
+            "Prev_Close", "P_50D_MA", "P_200D_MA", "V_14D_MA", "V_50D_MA", "Options",
+            "F52W_High", "F52W_H_DATE", "F52W_Low", "F52W_L_DATE",
+            "Close_Open", "Open_Close", "High_Close", "Low_Close", "Close_Close",
+            "Shares_Out", "Shares_Float", "Short_Ratio", "Short_Percent_Float",
+            "Earnings_Date", "Shares_Insiders", "Shares_Institutions"
         ]
 
         row_data = {k: row[k] for k in display_keys if k in row}
@@ -180,7 +180,7 @@ def plot_close_price_history_plotly_without_subplots(ticker: str):
         df = load_historical_close_prices(ticker)
         # Sort by date
         df = df.sort_values("Trade_Date")
-        colors = ["green" if val >= 0 else "red" for val in df["Close_to_Close (%)"]]
+        colors = ["green" if val >= 0 else "red" for val in df["Close_Close"]]
         # ----------- First Plot: Close Price -----------
         fig_close = go.Figure()
         fig_close.add_trace(go.Scatter(
@@ -212,7 +212,7 @@ def plot_close_price_history_plotly_without_subplots(ticker: str):
         fig_vol = go.Figure()
         fig_vol.add_trace(go.Bar(
             x=df["Trade_Date"],
-            y=df["volume"],
+            y=df["Volume"],
             name="Volume",
             marker_color=colors
         ))
@@ -262,7 +262,7 @@ def plot_close_price_history(ticker: str):
     try:
         df = load_historical_close_prices(ticker)
         df = df.sort_values("Trade_Date")
-        colors = ["green" if val >= 0 else "red" for val in df["Close_to_Close (%)"]]
+        colors = ["green" if val >= 0 else "red" for val in df["Close_Close"]]
         
         #start_date, end_date = get_date_range_from_steps(step_size, step_count)
         #df = df[(df["Trade_Date"].dt.date >= start_date) & (df["Trade_Date"].dt.date <= end_date)]
@@ -288,7 +288,7 @@ def plot_close_price_history(ticker: str):
         # Row 2: Volume Bar
         fig.add_trace(go.Bar(
             x=df["Trade_Date"],
-            y=df["volume"],
+            y=df["Volume"],
             name="Volume",
             marker_color=colors
         ), row=2, col=1)
