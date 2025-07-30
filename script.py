@@ -223,8 +223,8 @@ def run_finnhub_data_pipeline(tickers: List[str]):
         "revenue_estimates_quarterly": lambda t: get_finnhub_df(client, client.company_revenue_estimates, t, "quarterly"),
         "revenue_estimates_annual":    lambda t: get_finnhub_df(client, client.company_revenue_estimates, t, "annual"),
         "eps_estimates_quarterly":     lambda t: get_finnhub_df(client, client.company_eps_estimates,     t, "quarterly"),
-        "eps_estimates_annual":        lambda t: get_finnhub_df(client, client.company_eps_estimates,     t, "annual"),
-        "news_data":                   lambda t: get_finnhub_news(client, client.company_news,t,today_iso,today_iso),
+        "eps_estimates_annual":        lambda t: get_finnhub_df(client, client.company_eps_estimates,     t, "annual")#,
+        #"news_data":                   lambda t: get_finnhub_news(client, client.company_news,t,today_iso,today_iso),
     }
 
     collected: Dict[str, List[pd.DataFrame]] = {k: [] for k in funcs if k != "news_data"}
