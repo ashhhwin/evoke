@@ -1011,9 +1011,9 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             )
 
         # EPS and Revenue side-by-side
-       # with gr.Row():
-            #eps_plot = gr.Plot(label="EPS Plot")
-            #rev_plot = gr.Plot(label="Revenue Plot")
+        with gr.Row():
+            eps_plot = gr.Plot(label="EPS Plot")
+            rev_plot = gr.Plot(label="Revenue Plot")
 
         gr.Markdown("## View Close Price and Volume by Ticker")
         # Close price chart below
@@ -1052,8 +1052,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             except Exception as e:
                 snapshot = f"Error loading ticker snapshot: {e}"
             #return eps_fig, rev_fig, price_fig, vol_fig, snapshot
-            #return eps_fig, rev_fig, close_vol_fig, snapshot ---use me
-            return close_vol_fig, snapshot
+            return eps_fig, rev_fig, close_vol_fig, snapshot
+            #return close_vol_fig, snapshot
     
       # Update all elements when ticker or type changes
 
@@ -1061,16 +1061,16 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             fn=update_all,
             inputs=[ticker_dropdown, data_type],
             #outputs=[eps_plot, rev_plot, close_plot, volume_plot, ticker_info]
-            #outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info] --use me
-            outputs=[close_vol_plot, ticker_info]
+            outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info] 
+            #outputs=[close_vol_plot, ticker_info]
         )
 
         data_type.change(
             fn=update_all,
             inputs=[ticker_dropdown, data_type],
             #outputs=[eps_plot, rev_plot, close_plot, volume_plot, ticker_info]
-            #outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info] --use me
-            outputs=[ close_vol_plot, ticker_info]
+            outputs=[eps_plot, rev_plot, close_vol_plot, ticker_info] 
+            #outputs=[ close_vol_plot, ticker_info]
         )
         
     with gr.Tab("EPS & Revenue Revisions"):
@@ -1151,6 +1151,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886)
+
 
 
 
