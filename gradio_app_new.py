@@ -863,7 +863,7 @@ def load_news_from_gcs(date_str, ticker, keyword="", bucket_name="historical_dat
 
 
 ## ashwin changes end here
-'''
+
 ## ashwin earnings changes start here
 
 from collections import defaultdict
@@ -960,7 +960,82 @@ def render_earnings_calendar(entries, ticker_filter=""):
     return html if grouped else "<div style='color:red;'>No earnings found for selected range.</div>"
 
 ## ashwin earnings changes end here
+'''
+def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data_evoke"):
+    import datetime, json
+    from google.cloud import storage
 
+    from_dt = from_date.date() if isinstance(from_date, datetime.datetime) else datetime.datetime.strptime(str(from_date), "%Y-%m-%d").date()
+    to_dt = to_date.date() if isinstance(to_date, datetime.datetime) else datetime.datetime.strptime(str(to_date), "%Y-%m-%d").date()
+
+    client = storage.Client()
+    blob = client.bucket(bucket_name).blob("market_data/earnings_calendar/ALL_EARNINGS_2025.json")
+    content = blob.download_as_text()
+    all_entries = json.loads(content).get("earningsCalendar", [])
+
+    # Filter for date
+    filtered = []
+    for e in all_entries:
+        try:
+            dt = datetime.datetime.strptime(e["date"], "%Y-%m-%d").date()
+            if from_dt <= dt <= to_dt:
+                filtered.append(e)
+        except:
+            continue
+
+    return filtered
+
+def render_earnings_calendar(entries, ticker_filter=""):
+    import datetime
+    from collections import defaultdict
+
+    grouped = defaultdict(list)
+    for entry in entries:
+        if ticker_filter and ticker_filter.lower() not in entry["symbol"].lower():
+            continue
+        grouped[entry["date"]].append(entry)
+
+    grouped = dict(sorted(grouped.items(), key=lambda x: x[0]))
+    html = """
+    <div style='display: flex; flex-direction: row; overflow-x: auto; gap: 20px; padding: 10px 0;'>
+    """
+
+    today = datetime.date.today()
+
+    for date_str, items in grouped.items():
+        date_obj = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+        date_label = date_obj.strftime("%a, %b %d")
+        ticker_count = len(items)
+        header = f"{date_label} <span style='color:#888;'>({ticker_count} Earnings)</span>"
+        highlight = "border: 2px solid #00ff9d;" if date_obj == today else ""
+
+        block = f"""
+        <div style='min-width: 220px; max-width: 240px; background:#1e1e1e; padding:12px 14px; border-radius:8px; color:#eee; font-family:Inter, sans-serif; box-shadow: 0 0 4px #00000033; {highlight}'>
+            <h4 style='color:#00ff9d; font-weight:bold; border-bottom:1px solid #333; padding-bottom:6px; margin-bottom:10px;'>{header}</h4>
+        """
+
+        for e in items:
+            symbol = e.get("symbol", "—")
+            hour = e.get("hour", "tbd").upper()
+            if hour == "AMC":
+                timing = "After Market"
+            elif hour == "BMO":
+                timing = "Before Market"
+            else:
+                timing = "TBD"
+
+            block += f"""
+            <div style='padding:6px 0; border-bottom:1px dashed #444;'>
+                <div style='font-weight:bold;'>{symbol}</div>
+                <div style='font-size:0.85em; color:#aaa;'>{timing}</div>
+            </div>
+            """
+
+        block += "</div>"
+        html += block
+
+    html += "</div>"
+    return html if grouped else "<div style='color:red;'>No earnings found for selected range.</div>"
 with gr.Blocks(theme=gr.themes.Soft()) as app:
     gr.Markdown("<h1 style='text-align:center; color:#00ff9d;'>📈 Market Data Dashboard</h1>")
 
@@ -1151,6 +1226,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886)
+
 
 
 
