@@ -385,21 +385,12 @@ def get_finnhub_df(client, func: Callable, ticker: str, freq: str) -> pd.DataFra
     except Exception as e:
         logger.error("Finnhub error %s / %s : %s", ticker, func.__name__, e)
         return pd.DataFrame()
-        
-#def get_finnhub_news(client, func: Callable, ticker: str, from_date: datetime, to_date: datetime ): --- remove after test
-#    try:
-#        data = func(ticker,from_date,to_date) or {}
-#        return data
-#    except Exception as e:
-#        logger.error("Finnhub error %s / %s : %s", ticker, func.__name__, e)
-#        return {}
+
 
 def run_finnhub_data_pipeline(tickers: List[str]):
     today_iso = date.today().isoformat()
     raw_dir = f"daily/{today_iso}/FINNHUB/raw_data"
     tx_dir = f"daily/{today_iso}/FINNHUB/transformed"
-    #news_dir =f"news/{today_iso}" ---remove after test
-    #Path(news_dir).mkdir(parents=True, exist_ok=True)
     
     client = fb.Client(api_key=FINNHUB_API_KEY)
 
@@ -407,8 +398,7 @@ def run_finnhub_data_pipeline(tickers: List[str]):
         "revenue_estimates_quarterly": lambda t: get_finnhub_df(client, client.company_revenue_estimates, t, "quarterly"),
         "revenue_estimates_annual":    lambda t: get_finnhub_df(client, client.company_revenue_estimates, t, "annual"),
         "eps_estimates_quarterly":     lambda t: get_finnhub_df(client, client.company_eps_estimates,     t, "quarterly"),
-        "eps_estimates_annual":        lambda t: get_finnhub_df(client, client.company_eps_estimates,     t, "annual")#,
-        #"news_data":                   lambda t: get_finnhub_news(client, client.company_news,t,today_iso,today_iso), --- remove after test
+        "eps_estimates_annual":        lambda t: get_finnhub_df(client, client.company_eps_estimates,     t, "annual")
     }
 
     collected: Dict[str, List[pd.DataFrame]] = {k: [] for k in funcs.keys()}
@@ -425,11 +415,7 @@ def run_finnhub_data_pipeline(tickers: List[str]):
             except Exception as e:
                 log_progress(f"[{i+1}/{len(tickers)}] ERROR {name} for {tk}: {e}")
         time.sleep(RATE_LIMIT_SEC)
-         #if name == "news_data":    ---remove after test       
-                                                     #       json_str = json.dumps(df, indent=2)
-                                                     #       gcs_dest = gcs_path(f"{news_dir}/{tk}.json")
-                                                     #       upload_string_to_gcs("historical_data_evoke", gcs_dest, json_str)          
-                                                     #else:
+     
     # Save raw CSVs to GCS
     for name, lst in collected.items():
         if lst:
@@ -476,61 +462,13 @@ def run_finnhub_data_pipeline(tickers: List[str]):
 # ──────────────────────────────────────────────────────────────────────────────
 # EODHD daily download
 # ──────────────────────────────────────────────────────────────────────────────
-def append_daily_chunk_to_latest(daily_chunk, date_column, bucket_name, final_data_folder, base_name, max_rows, project=None): #-----REMOVE AFTER TEST
-
-    fs = gcsfs.GCSFileSystem(project=project)
-    client = storage.Client(project=project)
-    bucket = client.bucket(bucket_name)
-
-    def get_latest_file(fs, folder_path, prefix="eodhd_", suffix=".csv"):
-        files = fs.ls(folder_path)
-        csv_files = [f for f in files if f.endswith(suffix) and prefix in f]
-        return sorted(csv_files)[-1] if csv_files else None
-
-    latest_path = get_latest_file(fs, f"{bucket_name}/{final_data_folder}", prefix=base_name)
-    if not latest_path:
-        raise ValueError("No existing file found in Final_data_v2!")
-
-    with fs.open(latest_path, 'r') as f:
-        master_df = pd.read_csv(f, low_memory=False)
-        master_df[date_column] = pd.to_datetime(master_df[date_column], errors='coerce')
-        original_df = master_df.copy()
-
-    # Format daily chunk
-    daily_chunk[date_column] = pd.to_datetime(daily_chunk[date_column], errors="coerce")
-    master_df = pd.concat([master_df, daily_chunk], ignore_index=True)
-    master_df.sort_values(by=date_column, inplace=True)
-    master_df.reset_index(drop=True, inplace=True)
-
-    if len(master_df) == len(original_df):
-        print("⚠️ No new data appended. Skipping upload to avoid overwriting.")
-        return
-
-
-    while not master_df.empty:
-        chunk = master_df.iloc[:max_rows]
-        master_df = master_df.iloc[max_rows:]
-
-        min_date = chunk[date_column].min().strftime('%Y%m%d')
-        max_date = chunk[date_column].max().strftime('%Y%m%d')
-        filename = f"{base_name}{min_date}_to{max_date}.csv"
-
-        local_path = f"/tmp/{filename}"
-        chunk.to_csv(local_path, index=False)
-
-        destination_path = f"{final_data_folder}/{filename}"
-        blob = bucket.blob(destination_path)
-        blob.upload_from_filename(local_path)
-        print(f"📤 Uploaded: gs://{bucket_name}/{destination_path} ({len(chunk)} rows)")
-        os.remove(local_path)
-
 
 def run_daily_bulk_download(tickers: List[str]):
     
-    date_str = "2025-08-19"
-    today = datetime.strptime(date_str, "%Y-%m-%d").date()
-    #today= date.today()
-    #date_str = today.isoformat()
+    #date_str = "2025-08-19"
+    #today = datetime.strptime(date_str, "%Y-%m-%d").date()
+    today= date.today()
+    date_str = today.isoformat()
     nyse = mcal.get_calendar('NYSE')
     schedule = nyse.schedule(start_date=today, end_date=today)
     trading_days = schedule.index.date.tolist()
@@ -568,13 +506,7 @@ def run_daily_bulk_download(tickers: List[str]):
     if "MarketCapitalization" in df.columns:
         df["MarketCapitalization"] = (pd.to_numeric(df["MarketCapitalization"], errors="coerce") / 1e6).round(2)
     df["date"] = pd.to_datetime(date_str)
-    #df['date'] = date_str
-    #df["date"] = pd.to_datetime(df["date"])
-    #df["Close_to_Close (%)"]=0.0
-    #df["Close_to_Open (% from Prev Day Close)"]=0.0
-    # Merge with previous day's close and volume
-    # ashwin making changes to fix previous close price
-    # (skip prev_path.exists() logic for GCS version for now)
+
     prev_day = get_previous_trading_day(today)
     if prev_day:
         prev_str = prev_day.isoformat()
@@ -612,16 +544,7 @@ def run_daily_bulk_download(tickers: List[str]):
                 f"{URL_FUNDAMENTAL}/{tk}?filter=General::Code,SharesStats,Technicals&api_token={EOD_API_TOKEN}&fmt=json",
                 timeout=30
             )
-            #earnings_trend = f_json.get("Earnings::Trend", {})
-            #future_dates = []
-            #for k, v in earnings_trend.items():
-                #try:
-                   # rep_date = datetime.strptime(k, "%Y-%m-%d").date()
-                   # if rep_date > today:
-                   #     future_dates.append(rep_date)
-               # except:
-            #    continue
-            #next_earnings_date = min(future_dates).isoformat() if future_dates else None  --- remove after test
+  
             nxt_dt = immediate_next_earnings(tk, today, earnings_index)
             next_earnings_date = None if pd.isna(nxt_dt) else pd.to_datetime(nxt_dt).date().isoformat()
             extra_rows.append({
@@ -683,24 +606,6 @@ def run_daily_bulk_download(tickers: List[str]):
         today_enriched = combo[combo["Trade_Date"] == pd.to_datetime(date_str)].copy()
         
         out_blob = f"{DAILY_OUTPUT_BASE}/eod_us_{pd.to_datetime(date_str).strftime('%Y%m%d')}_cleaned.csv"
-        '''
-        tmp = "/tmp/_daily_clean.csv"
-        today_enriched.to_csv(tmp, index=False)
-        bucket.blob(out_blob).upload_from_filename(tmp)
-        os.remove(tmp)
-        
-        # Create GCS client for uploads
-        client = storage.Client()
-        bucket = client.bucket(BUCKET_NAME)
-
-        # Upload cleaned CSV to Download_daily_data
-        out_blob = f"{DAILY_OUTPUT_BASE}/eod_us_{pd.to_datetime(date_str).strftime('%Y%m%d')}_cleaned.csv"
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as tmp_file:
-            today_enriched.to_csv(tmp_file.name, index=False)
-            bucket.blob(out_blob).upload_from_filename(tmp_file.name)
-            os.unlink(tmp_file.name)
-         '''
         upload_dataframe_to_gcs(today_enriched, out_blob)
         log_progress(f"✅ Uploaded cleaned CSV: gs://{BUCKET_NAME}/{out_blob}  ({len(today_enriched)} rows)")
     except Exception as e:
@@ -1192,7 +1097,7 @@ run_finnhub_data_pipeline(tickers)
 import sys
 if __name__ == "__main__":
     try:
-        tickers = load_tickers(limit=5)
+        tickers = load_tickers(limit=None)
         run_pipelines_concurrently(tickers)
         logger.info("All pipelines completed successfully")
         sys.exit(0)
