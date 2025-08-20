@@ -1127,10 +1127,12 @@ def run_pipelines_concurrently(tickers: List[str]):
         for future in futures:
             try:
                 future.result()
+                logger.info(f"{futures[future]} pipeline completed successfully")
             except Exception as e:
                 success = False
-                error_messages.append(f"{futures[future]} failed: {e}")
-                logger.exception(f"{futures[future]} pipeline failed")
+                error_msg = f"{futures[future]} failed: {str(e)}"
+                error_messages.append(error_msg)
+                logger.exception(f"{futures[future]} pipeline failed : {e}")
 
     update_cron_stats(success, error_msg="\n".join(error_messages) if error_messages else None)
 
@@ -1175,6 +1177,7 @@ def run_earnings_calendar_upload(tickers: List[str], from_date: str, to_date: st
         time.sleep(0.25)  # Respect Finnhub rate limits
 
     log_progress(f"Finished earnings calendar upload for date range: {from_date} to {to_date}")
+'''
     #run_finnhub_data_pipeline(tickers)
     #run_pipelines_concurrently(tickers)
     #run_earnings_calendar_upload(tickers, from_date="2025-01-01", to_date="2025-12-01")
@@ -1189,12 +1192,13 @@ run_finnhub_data_pipeline(tickers)
 import sys
 if __name__ == "__main__":
     try:
-        tickers = load_tickers(limit=None)
+        tickers = load_tickers(limit=5)
         run_pipelines_concurrently(tickers)
+        logger.info("All pipelines completed successfully")
         sys.exit(0)
-    except:
+    except Exception as e:
         logger.error(f"Fatal error: {e}")
         update_cron_stats(False, str(e))
         sys.exit(1)  # failure triggers job restart
-'''    
+
 
