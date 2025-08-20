@@ -76,8 +76,8 @@ def load_eps_and_revenue_data():
         rev_blob = next((b.name for b in blobs if "revenue_transformed_" in b.name and b.name.endswith(".csv")),None)
         if not eps_blob or not rev_blob:
             raise FileNotFoundError("EPS or Revenue CSV file not found in GCS folder.")
-        eps_df = (eps_blob)
-        rev_df = (rev_blob)
+        eps_df = read_csv_from_gcs(eps_blob)
+        rev_df = read_csv_from_gcs(rev_blob)
         return eps_df, rev_df
     except Exception as e:
         raise FileNotFoundError(f"Error loading EPS/Revenue data from GCS: {e}")
@@ -248,4 +248,5 @@ EODHD_SECRET_NAME = "eodhd_api_key"
 
 if __name__ == "__main__":
     run_eodhd_pipeline()
+
 
