@@ -1117,28 +1117,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             inputs=[from_date, to_date, period, month_dropdown,market_cap_dropdown],
             outputs=[ status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box, excel_download]
         )
-'''
-## ashwin changes start here
-
-    with gr.Tab("Market News by Ticker"):
-        gr.Markdown("## 📰 Market News by Ticker and Date")
-    
-        with gr.Row():
-            news_date = gr.Dropdown(label="Select Date", choices=dates, value=latest)
-            news_ticker = gr.Dropdown(label="Select Ticker", choices=get_ticker_list(), value=None)
-    
-        search_input = gr.Textbox(label="Search Headline or Summary", placeholder="Type to filter...", lines=1)
-    
-        load_news_btn = gr.Button("Load News")
-        news_output = gr.HTML(label="News Feed")
-    
-        load_news_btn.click(
-            fn=load_news_from_gcs,
-            inputs=[news_date, news_ticker, search_input],
-            outputs=news_output
-        )
-'''
-    ##ashwin changes end here
+        
     with gr.Tab("Earnings Calendar"):
         gr.Markdown("## 📆 Upcoming Earnings Calendar")
     
@@ -1169,4 +1148,5 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886)
+
 
