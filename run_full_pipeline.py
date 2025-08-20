@@ -15,7 +15,8 @@ from google.cloud import secretmanager
 from google.cloud import storage
 import io
 import os
-import gcsfs # Anu's class
+import gcsfs 
+import re
 GCS_BUCKET = "historical_data_evoke" 
 
 PROGRESS_LOG = Path("market_data/progress.log")
@@ -274,6 +275,7 @@ EODHD_SECRET_NAME = "eodhd_api_key"
 
 if __name__ == "__main__":
     run_eodhd_pipeline()
+
 
 
 
