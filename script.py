@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from google.cloud import storage
 import io
 import pandas as pd
+import numpy as np
 import pandas_market_calendars as mcal
 import finnhub as fb
 from tqdm import tqdm
@@ -56,7 +57,7 @@ BASE_EOD_URL    = "https://eodhd.com/api/eod-bulk-last-day/US"
 URL_FUNDAMENTAL = "https://eodhd.com/api/fundamentals"
 DATA_DIR        = Path("market_data")
 RATE_LIMIT_SEC   = 1
-
+fs = gcsfs.GCSFileSystem() # --- added on 20/8
 #start_date = date(2025, 1, 1) ---remove after test
 #end_date = date(2025, 12, 31) ---remove after test
 
@@ -88,6 +89,14 @@ def upload_dataframe_to_gcs(df: pd.DataFrame, blob_path: str):
     buffer = io.StringIO()
     df.to_csv(buffer, index=False)
     blob.upload_from_string(buffer.getvalue(), content_type="text/csv")
+
+def upload_parquet_to_gcs(df: pd.DataFrame, blob_path: str):
+    client = storage.Client()
+    bucket = client.bucket(BUCKET_NAME)
+    blob = bucket.blob(blob_path)
+    buffer = io.BytesIO()
+    df.to_parquet(buffer, index=False)
+    blob.upload_from_string(buffer.getvalue(), content_type="application/octet-stream")
 
 def read_csv_from_gcs(blob_path: str) -> pd.DataFrame:
     client = storage.Client()
@@ -656,8 +665,9 @@ def run_daily_bulk_download(tickers: List[str]):
     # Build cleaned SQL-friendly CSV with 52w metrics
     try:
         # Read back the merged CSV we just uploaded (ensures we're using identical contents)
-        with fs.open(f"{BUCKET_NAME}/{DAILY_INPUT_BASE}/{date_str}/EODHD/eod_us_{date_str}_merged.csv", "rb") as f:
-            today_raw = pd.read_csv(f, keep_default_na=False, na_values=[""])
+        #with fs.open(f"{DAILY_INPUT_BASE}/{date_str}/EODHD/eod_us_{date_str}_merged.csv", "rb") as f: --remove after test
+            #today_raw = pd.read_csv(f, keep_default_na=False, na_values=[""]) --remove after test
+        today_raw = read_csv_from_gcs(f"{DAILY_INPUT_BASE}/{date_str}/EODHD/eod_us_{date_str}_merged.csv")
         today_raw["Trade_Date"] = pd.to_datetime(date_str)
         today_fmt = rename_and_format(today_raw)
 
@@ -671,13 +681,27 @@ def run_daily_bulk_download(tickers: List[str]):
         combo = pd.concat([hist_df, today_fmt], ignore_index=True)
         combo = compute_52w_metrics(combo)
         today_enriched = combo[combo["Trade_Date"] == pd.to_datetime(date_str)].copy()
-
+        
         out_blob = f"{DAILY_OUTPUT_BASE}/eod_us_{pd.to_datetime(date_str).strftime('%Y%m%d')}_cleaned.csv"
+        '''
         tmp = "/tmp/_daily_clean.csv"
         today_enriched.to_csv(tmp, index=False)
         bucket.blob(out_blob).upload_from_filename(tmp)
         os.remove(tmp)
+        
+        # Create GCS client for uploads
+        client = storage.Client()
+        bucket = client.bucket(BUCKET_NAME)
 
+        # Upload cleaned CSV to Download_daily_data
+        out_blob = f"{DAILY_OUTPUT_BASE}/eod_us_{pd.to_datetime(date_str).strftime('%Y%m%d')}_cleaned.csv"
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as tmp_file:
+            today_enriched.to_csv(tmp_file.name, index=False)
+            bucket.blob(out_blob).upload_from_filename(tmp_file.name)
+            os.unlink(tmp_file.name)
+         '''
+        upload_dataframe_to_gcs(today_enriched, out_blob)
         log_progress(f"✅ Uploaded cleaned CSV: gs://{BUCKET_NAME}/{out_blob}  ({len(today_enriched)} rows)")
     except Exception as e:
         log_progress(f"[ERROR] Cleaning/52w stage failed: {e}")
@@ -694,11 +718,12 @@ def run_daily_bulk_download(tickers: List[str]):
             min_date = chunk["Trade_Date"].min().strftime("%Y%m%d")
             max_date = chunk["Trade_Date"].max().strftime("%Y%m%d")
             filename = f"eodhd_{min_date}_to_{max_date}.parquet"
-            tmp_path = f"/tmp/{filename}"
-            chunk.to_parquet(tmp_path, index=False)
+            #tmp_path = f"/tmp/{filename}" --remove after test
+            #chunk.to_parquet(tmp_path, index=False) --remove after test
             dest_path = f"{HIST_PARQUET_FOLDER}/{filename}"
-            bucket.blob(dest_path).upload_from_filename(tmp_path)
-            os.remove(tmp_path)
+            upload_parquet_to_gcs(chunk, dest_path)
+            #bucket.blob(dest_path).upload_from_filename(tmp_path) --remove after test
+            #os.remove(tmp_path) --- remove after test
             log_progress(f"📤 Uploaded parquet chunk: gs://{BUCKET_NAME}/{dest_path} ({len(chunk)} rows)")
     except Exception as e:
         log_progress(f"[ERROR] Failed parquet append stage: {e}")
