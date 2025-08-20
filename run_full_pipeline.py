@@ -76,8 +76,8 @@ def load_eps_and_revenue_data():
         rev_blob = next((b.name for b in blobs if "revenue_transformed_" in b.name and b.name.endswith(".csv")),None)
         if not eps_blob or not rev_blob:
             raise FileNotFoundError("EPS or Revenue CSV file not found in GCS folder.")
-        eps_df = read_csv_from_gcs(eps_blob)
-        rev_df = read_csv_from_gcs(rev_blob)
+        eps_df = (eps_blob)
+        rev_df = (rev_blob)
         return eps_df, rev_df
     except Exception as e:
         raise FileNotFoundError(f"Error loading EPS/Revenue data from GCS: {e}")
@@ -91,7 +91,7 @@ def load_latest_eodhd_merged(ticker: str) -> pd.Series:
     for date_str in dates:
         blob_path = f"market_data/daily/{date_str}/EODHD/eod_us_{date_str}_merged.csv"
         try:
-            df = read_csv_from_gcs(blob_path)
+            df = (blob_path)
             match = df[df["Symbol"].str.upper() == ticker.upper()]
             if not match.empty:
                 return match.iloc[0]
@@ -175,48 +175,7 @@ def run_historical_pipeline(start: str, end: str):
     except Exception as e:
         log_progress(f"Historical download failed: {e}")
         return f"Failed: {e}"  
-'''   
-def load_historical_close_prices(ticker: str) -> pd.DataFrame:
-    blob_path = "Final_data_1year.csv"
-    df = read_csv_from_gcs(blob_path)
 
-    df = df[df["Symbol"].str.upper() == ticker.upper()]
-    required_columns = ["Trade_Date", "P_Close", "volume", "Close_to_Close (%)", "V_14D_MA", "V_50D_MA"]
-    existing_columns = [col for col in required_columns if col in df.columns]
-
-    if not df.empty and existing_columns:
-        return df[existing_columns].dropna().sort_values("Trade_Date")
-    else:
-        raise ValueError(f"No data found for ticker '{ticker}' in {blob_path}")
-
-
-def load_historical_close_prices(ticker: str, bucket_name="historical_data_evoke", folder="Final_data_parquet") -> pd.DataFrame:
-    fs = gcsfs.GCSFileSystem()
-    all_files = fs.ls(f"{bucket_name}/{folder}")
-    csv_files = [f.replace(f"{bucket_name}/", "") for f in all_files if f.endswith(".parquet")]
-
-    if not csv_files:
-        raise FileNotFoundError(f"No parquest files found in gs://{bucket_name}/{folder}")
-
-    full_df = pd.concat(
-        [read_pk_from_gcs(f) for f in csv_files],
-        ignore_index=True
-    )
-
-    df = full_df[full_df["Symbol"].str.upper() == ticker.upper()]
-
-    required_columns = ["Trade_Date", "P_Close", "volume", "Close_to_Close (%)", "V_14D_MA", "V_50D_MA"]
-    existing_columns = [col for col in required_columns if col in df.columns]
-    
-    if not df.empty and existing_columns:
-        df["Trade_Date"] = pd.to_datetime(df["Trade_Date"], errors="coerce")
-        for col in ["P_Close", "volume", "Close_to_Close (%)", "V_14D_MA", "V_50D_MA"]:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-        return df[existing_columns].dropna().sort_values("Trade_Date")
-    else:
-        raise ValueError(f"No data found for ticker '{ticker}' in any file from {folder}")
-'''
 def load_historical_close_prices(ticker: str, bucket_name="historical_data_evoke", folder="Final_data_parquet") -> pd.DataFrame:
     fs = gcsfs.GCSFileSystem()
     all_files = fs.ls(f"{bucket_name}/{folder}")
@@ -289,3 +248,4 @@ EODHD_SECRET_NAME = "eodhd_api_key"
 
 if __name__ == "__main__":
     run_eodhd_pipeline()
+
