@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+
+import gcsfs
 import os, time, shutil, logging, requests, json
 from datetime import date, timedelta, datetime
 from pathlib import Path
@@ -120,7 +122,18 @@ def get_previous_trading_day(today: date) -> Optional[date]:
     if today in days:
         days.pop()
     return days[-1] if days else None
-
+    
+def process_chunk(chunk):
+    if 'MarketCapitalization' in chunk.columns:
+        chunk['MarketCapitalization'] = pd.to_numeric(chunk['MarketCapitalization'], errors='coerce').round(0).astype('Int64')
+    if 'volume' in chunk.columns:
+        chunk['volume'] = pd.to_numeric(chunk['volume'], errors='coerce').round(0).astype('Int64')
+    exclude = ['MarketCapitalization', 'volume']
+    numeric_cols = chunk.select_dtypes(include='number').columns
+    to_round = [col for col in numeric_cols if col not in exclude]
+    chunk[to_round] = chunk[to_round].round(2)
+    return chunk
+    
 def format_data(df: pd.DataFrame) -> pd.DataFrame:
     column_map = {
         "date": "Trade_Date",
@@ -279,14 +292,61 @@ def run_finnhub_data_pipeline(tickers: List[str]):
 # ──────────────────────────────────────────────────────────────────────────────
 # EODHD daily download
 # ──────────────────────────────────────────────────────────────────────────────
+def append_daily_chunk_to_latest(daily_chunk, date_column, bucket_name, final_data_folder, base_name, max_rows, project=None):
+
+    fs = gcsfs.GCSFileSystem(project=project)
+    client = storage.Client(project=project)
+    bucket = client.bucket(bucket_name)
+
+    def get_latest_file(fs, folder_path, prefix="eodhd_", suffix=".csv"):
+        files = fs.ls(folder_path)
+        csv_files = [f for f in files if f.endswith(suffix) and prefix in f]
+        return sorted(csv_files)[-1] if csv_files else None
+
+    latest_path = get_latest_file(fs, f"{bucket_name}/{final_data_folder}", prefix=base_name)
+    if not latest_path:
+        raise ValueError("No existing file found in Final_data_v2!")
+
+    with fs.open(latest_path, 'r') as f:
+        master_df = pd.read_csv(f, low_memory=False)
+        master_df[date_column] = pd.to_datetime(master_df[date_column], errors='coerce')
+        original_df = master_df.copy()
+
+    # Format daily chunk
+    daily_chunk[date_column] = pd.to_datetime(daily_chunk[date_column], errors="coerce")
+    master_df = pd.concat([master_df, daily_chunk], ignore_index=True)
+    master_df.sort_values(by=date_column, inplace=True)
+    master_df.reset_index(drop=True, inplace=True)
+
+    if len(master_df) == len(original_df):
+        print("⚠️ No new data appended. Skipping upload to avoid overwriting.")
+        return
+
+
+    while not master_df.empty:
+        chunk = master_df.iloc[:max_rows]
+        master_df = master_df.iloc[max_rows:]
+
+        min_date = chunk[date_column].min().strftime('%Y%m%d')
+        max_date = chunk[date_column].max().strftime('%Y%m%d')
+        filename = f"{base_name}{min_date}_to{max_date}.csv"
+
+        local_path = f"/tmp/{filename}"
+        chunk.to_csv(local_path, index=False)
+
+        destination_path = f"{final_data_folder}/{filename}"
+        blob = bucket.blob(destination_path)
+        blob.upload_from_filename(local_path)
+        print(f"📤 Uploaded: gs://{bucket_name}/{destination_path} ({len(chunk)} rows)")
+        os.remove(local_path)
 
 
 def run_daily_bulk_download(tickers: List[str]):
     
-    #date_str = "2025-07-08"
-    #today = datetime.strptime(date_str, "%Y-%m-%d").date()
-    today= date.today()
-    date_str = today.isoformat()
+    date_str = "2025-07-24"
+    today = datetime.strptime(date_str, "%Y-%m-%d").date()
+    #today= date.today()
+    #date_str = today.isoformat()
     nyse = mcal.get_calendar('NYSE')
     schedule = nyse.schedule(start_date=today, end_date=today)
     trading_days = schedule.index.date.tolist()
@@ -404,8 +464,11 @@ def run_daily_bulk_download(tickers: List[str]):
 
     final_df = format_data(df)
     upload_dataframe_to_gcs(final_df, merged_csv_gcs_path)
-
     log_progress(f"✅ EODHD data pipeline complete for {date_str}")
+    log_progress(f" Merging {date_str} with the historical data")
+    final_df = process_chunk(final_df)
+    append_daily_chunk_to_latest(daily_chunk=final_df,date_column="Trade_Date",bucket_name="historical_data_evoke",final_data_folder="Final_data_v2",base_name="eodhd_",max_rows=1_000_000)
+    log_progress(f"✅ EODHD data pipeline completed mergeing for {date_str}")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -775,7 +838,8 @@ def detect_eps_revenue_changes():
         if write_header:
             writer.writeheader()
         writer.writerow(summary_row)
-
+#old function
+'''
 def run_pipelines_concurrently(tickers: List[str]):
     """
     Run EODHD and Finnhub pipelines concurrently using ThreadPoolExecutor
@@ -788,7 +852,31 @@ def run_pipelines_concurrently(tickers: List[str]):
         # Wait for both to complete
         eodhd_future.result()
         finnhub_future.result()
+'''
+#new function
+def run_pipelines_concurrently(tickers: List[str]):
+    success = True
+    error_messages = []
 
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = {
+            executor.submit(run_daily_bulk_download, tickers): "EODHD",
+            executor.submit(run_finnhub_data_pipeline, tickers): "FINNHUB"
+        }
+
+        for future in futures:
+            try:
+                future.result()
+            except Exception as e:
+                success = False
+                error_messages.append(f"{futures[future]} failed: {e}")
+                logger.exception(f"{futures[future]} pipeline failed")
+
+    update_cron_stats(success, error_msg="\n".join(error_messages) if error_messages else None)
+
+    if not success:
+        raise RuntimeError("One or more pipelines failed. See logs for details.")
+        
 # Helper to robustly load master_tickers_with_flags_types.csv
 
 def load_master_tickers(path: str = None) -> pd.DataFrame:
@@ -828,9 +916,18 @@ def run_earnings_calendar_upload(tickers: List[str], from_date: str, to_date: st
 
     log_progress(f"Finished earnings calendar upload for date range: {from_date} to {to_date}")
 
-
+import sys
 if __name__ == "__main__":
-    tickers = load_tickers(limit=None)
+    try:
+        tickers = load_tickers(limit=None)
+        run_daily_bulk_download(tickers)
+        #run_pipelines_concurrently(tickers)
+        sys.exit(0)
+    except:
+        logger.error(f"Fatal error: {e}")
+        update_cron_stats(False, str(e))
+        sys.exit(1)  # failure triggers job restart
+    '''
     #run_finnhub_data_pipeline(tickers)
     run_pipelines_concurrently(tickers)
     #run_earnings_calendar_upload(tickers, from_date="2025-01-01", to_date="2025-12-01")
@@ -840,3 +937,4 @@ if __name__ == "__main__":
     
     #run_historical_bulk_download(date(2024,3,1),date(2024,3,10),pd.read_csv("master_tickers_with_flags_types.csv",keep_default_na=False))
     
+    '''
