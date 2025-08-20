@@ -413,7 +413,6 @@ def run_finnhub_data_pipeline(tickers: List[str]):
                     df.insert(0, "ticker", tk)
                     df.insert(1, "api_run_date", today_iso)
                     collected[name].append(df)
-                    
             except Exception as e:
                 log_progress(f"[{i+1}/{len(tickers)}] ERROR {name} for {tk}: {e}")
         time.sleep(RATE_LIMIT_SEC)
