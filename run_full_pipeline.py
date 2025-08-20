@@ -85,9 +85,12 @@ def load_eps_and_revenue_data():
 
 def load_latest_eodhd_merged(ticker: str) -> pd.Series:
     client = storage.Client()
-    blobs = client.list_blobs(GCS_BUCKET, prefix="market_data/daily/")
-    dates = sorted({blob.name.split("/")[2] for blob in blobs if len(blob.name.split("/")) > 2}, reverse=True)
-
+   # blobs = client.list_blobs(GCS_BUCKET, prefix="market_data/daily/")
+    blobs = list(client.list_blobs(GCS_BUCKET, prefix="Download_daily_data/"))
+    #dates = sorted({blob.name.split("/")[2] for blob in blobs if len(blob.name.split("/")) > 2}, reverse=True)
+    pat = re.compile(r"^Download_daily_data/eod_us_(\d{8})_cleaned\.csv$")
+    candidates = [(int(m.group(1)), b.name) for b in blobs if (m := pat.match(b.name))]
+    '''
     for date_str in dates:
         blob_path = f"market_data/daily/{date_str}/EODHD/eod_us_{date_str}_merged.csv"
         try:
@@ -98,6 +101,29 @@ def load_latest_eodhd_merged(ticker: str) -> pd.Series:
         except:
             continue
     raise FileNotFoundError(f"No EODHD data found in GCS for ticker {ticker}")
+    '''
+    if not candidates:
+        raise FileNotFoundError("No cleaned EODHD files found in Download_daily_data.")
+
+    # Sort newest first
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    tkr = str(ticker).upper()
+
+    for _, blob_path in candidates:
+        try:
+            df = read_csv_from_gcs(blob_path)  # <-- reuse your existing helper
+            sym_col = next((c for c in ["Symbol", "ticker", "Ticker", "SYMBOL"] if c in df.columns), None)
+            if sym_col is None:
+                continue
+
+            df[sym_col] = df[sym_col].astype(str).str.upper()
+            match = df[df[sym_col] == tkr]
+            if not match.empty:
+                return match.iloc[0]
+        except Exception:
+            continue
+
+    raise FileNotFoundError(f"No row found for ticker {ticker} in Download_daily_data cleaned files.")
 
 
 def get_ticker_data(ticker: str, eps_df: pd.DataFrame, rev_df: pd.DataFrame):
@@ -248,5 +274,6 @@ EODHD_SECRET_NAME = "eodhd_api_key"
 
 if __name__ == "__main__":
     run_eodhd_pipeline()
+
 
 
