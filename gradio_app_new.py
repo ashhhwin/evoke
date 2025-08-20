@@ -969,7 +969,7 @@ def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data
     to_dt = to_date.date() if isinstance(to_date, datetime.datetime) else datetime.datetime.strptime(str(to_date), "%Y-%m-%d").date()
 
     client = storage.Client()
-    blob = client.bucket(bucket_name).blob("market_data/earnings_calendar/ALL_EARNINGS_2025.json")
+    blob = client.bucket(bucket_name).blob("ALL_EARNINGS_2025.json")
     content = blob.download_as_text()
     all_entries = json.loads(content).get("earningsCalendar", [])
 
@@ -1226,6 +1226,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886)
+
 
 
 
