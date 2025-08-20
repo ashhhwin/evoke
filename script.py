@@ -1150,6 +1150,15 @@ def run_earnings_calendar_upload(tickers: List[str], from_date: str, to_date: st
         time.sleep(0.25)  # Respect Finnhub rate limits
 
     log_progress(f"Finished earnings calendar upload for date range: {from_date} to {to_date}")
+    #run_finnhub_data_pipeline(tickers)
+    #run_pipelines_concurrently(tickers)
+    #run_earnings_calendar_upload(tickers, from_date="2025-01-01", to_date="2025-12-01")
+tickers = load_tickers(limit=5)
+run_daily_bulk_download(tickers)
+    #detect_eps_revenue_changes()
+    #update_cron_stats(True)
+    
+    #run_historical_bulk_download(date(2024,3,1),date(2024,3,10),pd.read_csv("master_tickers_with_flags_types.csv",keep_default_na=False))
 '''
 import sys
 if __name__ == "__main__":
@@ -1161,15 +1170,5 @@ if __name__ == "__main__":
         logger.error(f"Fatal error: {e}")
         update_cron_stats(False, str(e))
         sys.exit(1)  # failure triggers job restart
-    '''
-    #run_finnhub_data_pipeline(tickers)
-    #run_pipelines_concurrently(tickers)
-    #run_earnings_calendar_upload(tickers, from_date="2025-01-01", to_date="2025-12-01")
-    tickers = load_tickers(limit=5)
-    run_daily_bulk_download(tickers)
-    #detect_eps_revenue_changes()
-    #update_cron_stats(True)
-    
-    #run_historical_bulk_download(date(2024,3,1),date(2024,3,10),pd.read_csv("master_tickers_with_flags_types.csv",keep_default_na=False))
-    
+'''    
 
