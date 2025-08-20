@@ -408,20 +408,20 @@ def run_finnhub_data_pipeline(tickers: List[str]):
         log_progress(f"[{i+1}/{len(tickers)}] Fetching from Finnhub: {tk}")
         for name, fn in funcs.items():
             try: 
-                 df = fn(tk)
-                 #if name == "news_data":    ---remove after test       
-                 #       json_str = json.dumps(df, indent=2)
-                 #       gcs_dest = gcs_path(f"{news_dir}/{tk}.json")
-                 #       upload_string_to_gcs("historical_data_evoke", gcs_dest, json_str)          
-                 #else:
-                 if not df.empty:
+                df = fn(tk)
+                if not df.empty:
                     df.insert(0, "ticker", tk)
                     df.insert(1, "api_run_date", today_iso)
                     collected[name].append(df)
+                    
             except Exception as e:
                 log_progress(f"[{i+1}/{len(tickers)}] ERROR {name} for {tk}: {e}")
         time.sleep(RATE_LIMIT_SEC)
-    
+         #if name == "news_data":    ---remove after test       
+                                                     #       json_str = json.dumps(df, indent=2)
+                                                     #       gcs_dest = gcs_path(f"{news_dir}/{tk}.json")
+                                                     #       upload_string_to_gcs("historical_data_evoke", gcs_dest, json_str)          
+                                                     #else:
     # Save raw CSVs to GCS
     for name, lst in collected.items():
         if lst:
