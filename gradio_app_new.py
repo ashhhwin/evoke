@@ -1011,9 +1011,9 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             )
 
         # EPS and Revenue side-by-side
-        with gr.Row():
-            eps_plot = gr.Plot(label="EPS Plot")
-            rev_plot = gr.Plot(label="Revenue Plot")
+       # with gr.Row():
+            #eps_plot = gr.Plot(label="EPS Plot")
+            #rev_plot = gr.Plot(label="Revenue Plot")
 
         gr.Markdown("## View Close Price and Volume by Ticker")
         # Close price chart below
@@ -1148,6 +1148,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886)
+
 
 
 
