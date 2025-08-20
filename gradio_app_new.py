@@ -1119,8 +1119,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
         
     with gr.Tab("Earnings Calendar"):
-        gr.Markdown("## 📆 Upcoming Earnings Calendar")
-    
+        
+        gr.Markdown("## 📆 Upcoming Earnings Calendar"
         from datetime import date, timedelta
         default_from = (date.today() - timedelta(days=2)).strftime("%Y-%m-%d")
         default_to = (date.today() + timedelta(days=5)).strftime("%Y-%m-%d")
@@ -1148,5 +1148,6 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886)
+
 
 
