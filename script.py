@@ -1,10 +1,8 @@
-# This script is intended to be run as a cron job every day at 8pm.
-# Example crontab entry (edit with `crontab -e`):
-# 0 20 * * * /usr/bin/python3 /path/to/GCP-SCRIPT/script.py >> /path/to/GCP-SCRIPT/cron.log 2>&1
-#CREATING A NEW BRANCH
+
+# ──────────────────────────────────────────────────────────────────────────────
+# IMPORTS
+# ──────────────────────────────────────────────────────────────────────────────
 from __future__ import annotations
-
-
 import gcsfs
 import os, time, shutil, logging, requests, json
 from datetime import date, timedelta, datetime
@@ -21,15 +19,13 @@ from dotenv import load_dotenv
 import glob
 from google.cloud import secretmanager, storage
 import tempfile
-
+from bisect import bisect_right
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Environment / logging
 # ──────────────────────────────────────────────────────────────────────────────
 # load_dotenv()  # read .env if present
-
-import os
 
 # Helper to fetch secret from Google Secret Manager
 def get_secret(project_id: str, secret_id: str, version_id: str = "latest") -> str:
@@ -38,11 +34,19 @@ def get_secret(project_id: str, secret_id: str, version_id: str = "latest") -> s
     response = client.access_secret_version(request={"name": name})
     return response.payload.data.decode("UTF-8")
 
-# Set your GCP project ID and secret names here or via environment variables
+# ──────────────────────────────────────────────────────────────────────────────
+# GLOBAL VARIABLES
+# ──────────────────────────────────────────────────────────────────────────────
+# GCP project ID and secret names 
 GCP_PROJECT_ID = "tonal-nucleus-464617-n2"
 FINNHUB_SECRET_NAME = "finnhub_api_key"
 EODHD_SECRET_NAME = "eodhd_api_key"
-
+#GCS_BUCKET = "historical_data_evoke" ---remove after test
+PROGRESS_LOG = "market_data/progress.log"
+BUCKET_NAME = "historical_data_evoke"
+HIST_PARQUET_FOLDER = "Final_data_parquet"   
+DAILY_OUTPUT_BASE = "Download_daily_data" 
+DAILY_INPUT_BASE = "market_data/daily"  
 # Fetch API keys from Google Secret Manager
 FINNHUB_API_KEY = get_secret(GCP_PROJECT_ID, FINNHUB_SECRET_NAME)
 EOD_API_TOKEN = get_secret(GCP_PROJECT_ID, EODHD_SECRET_NAME)
@@ -52,15 +56,15 @@ URL_FUNDAMENTAL = "https://eodhd.com/api/fundamentals"
 DATA_DIR        = Path("market_data")
 RATE_LIMIT_SEC   = 1
 
+#start_date = date(2025, 1, 1) ---remove after test
+#end_date = date(2025, 12, 31) ---remove after test
 
-start_date = date(2025, 1, 1)
-end_date = date(2025, 12, 31)
 YEARS_OF_HISTORY = 5
 
-GCS_BUCKET = "historical_data_evoke"
-PROGRESS_LOG = "market_data/progress.log"
-BUCKET_NAME = "historical_data_evoke"
 
+# ──────────────────────────────────────────────────────────────────────────────
+# GCS HELPER FUNCTIONS ( READ/WRITE )
+# ──────────────────────────────────────────────────────────────────────────────
 def gcs_path(path: str) -> str:
     return f"market_data/{path}" if not path.startswith("market_data/") else path
 
@@ -123,16 +127,95 @@ def get_previous_trading_day(today: date) -> Optional[date]:
         days.pop()
     return days[-1] if days else None
     
-def process_chunk(chunk):
-    if 'MarketCapitalization' in chunk.columns:
-        chunk['MarketCapitalization'] = pd.to_numeric(chunk['MarketCapitalization'], errors='coerce').round(2)
-    if 'volume' in chunk.columns:
-        chunk['volume'] = pd.to_numeric(chunk['volume'], errors='coerce').round(0).astype('Int64')
-    exclude = ['MarketCapitalization', 'volume']
-    numeric_cols = chunk.select_dtypes(include='number').columns
-    to_round = [col for col in numeric_cols if col not in exclude]
-    chunk[to_round] = chunk[to_round].round(2)
-    return chunk
+# -------- Symbol normalization (suffix-aware) ----------------------------------
+EXCHANGE_SUFFIXES = {
+    "TO","V","CN","NE","CSE",            # Canada
+    "L","LN","GB","IL","IE",             # UK/Ireland
+    "PA","FP","FR",                      # France
+    "DE","F","BE","MU","SW",             # Germany/Swiss
+    "MI","BIT","BR","LS",                # Italy/Portugal
+    "AS","AMS","BRU",                    # Netherlands/Belgium
+    "ST","HE","CO","OL",                 # Nordics
+    "SA","MX","BMV","BME",               # LatAm/Spain/Mexico
+    "HK","SZ","SS","T","TW","TWO","KS","KQ","JK"  # APAC
+}
+
+def normalize_earnings_symbol(sym: str) -> str:
+    s = str(sym).upper().strip()
+    if "." in s:
+        parts = s.split(".")
+        if parts[-1] in EXCHANGE_SUFFIXES:
+            return ".".join(parts[:-1]) if len(parts) > 1 else parts[0]
+    return s
+
+def normalize_daily_symbol(sym: str) -> str:
+    return str(sym).upper().strip()
+
+
+# -------- Load ALL_EARNINGS.json from GCS; build {SYMBOL: sorted list[pd.Timestamp]} --------
+
+def resolve_all_earnings_gcs(date_ref: str | datetime | date | None = None) -> str:
+    """
+    Return gs:// path for ALL_EARNINGS_{YYYY}.json.
+    If date_ref is provided (str/datetime/date), use its year; else use today's year.
+    """
+    if date_ref is None:
+        yr = datetime.today().year
+    else:
+        yr = pd.to_datetime(date_ref).year
+    return f"gs://historical_data_evoke/ALL_EARNINGS_{yr}.json"
+    
+def load_earnings_calendar_from_gcs(gcs_uri: str) -> dict:
+    fs = gcsfs.GCSFileSystem()
+    with fs.open(gcs_uri, "rb") as f:
+        data = json.load(f)
+
+    cal = {}
+    # Primary format: {"earningsCalendar": [{ "symbol": ..., "date": "YYYY-MM-DD", ...}, ...]}
+    if isinstance(data, dict) and "earningsCalendar" in data and isinstance(data["earningsCalendar"], list):
+        for row in data["earningsCalendar"]:
+            raw_sym = row.get("symbol")
+            raw_dt = row.get("date")
+            if not raw_sym or not raw_dt:
+                continue
+            key = normalize_earnings_symbol(raw_sym)
+            dt = pd.to_datetime(raw_dt, errors="coerce")
+            if pd.isna(dt):
+                continue
+            cal.setdefault(key, []).append(dt)
+    else:
+        # Fallback mapping: { "AAPL": ["2025-01-30", ...], ... }
+        for raw_sym, dates in data.items():
+            key = normalize_earnings_symbol(raw_sym)
+            dts = pd.to_datetime(pd.Series(dates), errors="coerce").dropna().tolist()
+            if dts:
+                cal.setdefault(key, []).extend(dts)
+
+    # Sort & dedupe
+    for k, lst in list(cal.items()):
+        cal[k] = sorted(set(lst))
+    return cal
+
+def immediate_next_earnings(symbol: str, ref_date: pd.Timestamp, earnings_index: dict) -> pd.Timestamp:
+    key = normalize_daily_symbol(symbol)
+    dates = earnings_index.get(key, [])
+    if not dates:
+        return pd.NaT
+    i = bisect_right(dates, pd.to_datetime(ref_date))
+    return dates[i] if i < len(dates) else pd.NaT
+
+#----------------------------------------------------------------------------------------------------------------
+
+#def process_chunk(chunk): ---remove after test
+#    if 'MarketCapitalization' in chunk.columns:
+ #       chunk['MarketCapitalization'] = pd.to_numeric(chunk['MarketCapitalization'], errors='coerce').round(2)
+#    if 'volume' in chunk.columns:
+ #       chunk['volume'] = pd.to_numeric(chunk['volume'], errors='coerce').round(0).astype('Int64')
+  #  exclude = ['MarketCapitalization', 'volume']
+#    numeric_cols = chunk.select_dtypes(include='number').columns
+#    to_round = [col for col in numeric_cols if col not in exclude]
+#    chunk[to_round] = chunk[to_round].round(2)
+#    return chunk
     
 def format_data(df: pd.DataFrame) -> pd.DataFrame:
     column_map = {
@@ -176,7 +259,96 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     df.rename(columns={k: v for k, v in rename.items() if k in df.columns}, inplace=True)
     return df
 
-# Simple retry wrapper for GET calls
+# ========================= Cleaning & 52w helpers =========================
+def replace_inf_values(df: pd.DataFrame) -> pd.DataFrame:
+    POS = 9_999_999.99
+    NEG = -9_999_999.99
+    df.replace([np.inf, "inf", "INF", "Infinity"], POS, inplace=True)
+    df.replace([-np.inf, "-inf", "-INF", "-Infinity"], NEG, inplace=True)
+    return df
+
+def rename_and_format(df: pd.DataFrame) -> pd.DataFrame:
+    rename_map = {
+        "MarketCapitalization": "Market_Cap",
+        "volume": "Volume",
+        "hi_250d": "F52W_High",
+        "lo_250d": "F52W_Low",
+        "Close_to_Close (%)": "Close_Close",
+        "High_Close(%)": "High_Close",
+        "Low_Close(%)": "Low_Close",
+        "Open_Close (%)": "Open_Close",
+        "Close_to_Open (% from Prev Day Close)": "Close_Open",
+        "Prev_Close (Price)": "Prev_Close",
+    }
+    df = df.copy()
+    df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns}, inplace=True)
+
+    if "Market_Cap" in df.columns:
+        df["Market_Cap"] = pd.to_numeric(df["Market_Cap"], errors="coerce").round(2)
+    if "Volume" in df.columns:
+        df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce").round().astype("Int64")
+
+    exclude = {"Market_Cap", "Volume"}
+    num_cols = df.select_dtypes(include="number").columns
+    to_round = [c for c in num_cols if c not in exclude]
+    if to_round:
+        df[to_round] = df[to_round].round(2)
+
+    for col in ["Company_Name", "Sector", "Industry", "Type"]:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.replace(",", "", regex=False)
+
+    if "Trade_Date" in df.columns:
+        df["Trade_Date"] = pd.to_datetime(df["Trade_Date"], errors="coerce")
+
+    return replace_inf_values(df)
+
+def compute_52w_metrics(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df["Trade_Date"] = pd.to_datetime(df["Trade_Date"], errors="coerce")
+    df["P_Close"] = pd.to_numeric(df["P_Close"], errors="coerce")
+    df.sort_values(["Symbol", "Trade_Date"], inplace=True, kind="mergesort")
+    df.reset_index(drop=True, inplace=True)
+
+    df["F52W_High"] = df.groupby("Symbol")["P_Close"].transform(lambda x: x.rolling(252, min_periods=1).max().shift(1))
+    df["F52W_Low"]  = df.groupby("Symbol")["P_Close"].transform(lambda x: x.rolling(252, min_periods=1).min().shift(1))
+
+    def recent_date_match(prices, dates, refs):
+        prices = np.asarray(prices)
+        dates  = np.asarray(dates)
+        refs   = np.asarray(refs)
+        out = []
+        for i in range(len(prices)):
+            ref = refs[i]
+            if pd.isna(ref) or i < 252:
+                out.append(np.datetime64("NaT"))
+                continue
+            past_prices = prices[i-252:i]
+            past_dates  = dates[i-252:i]
+            hits = np.where(past_prices == ref)[0]
+            out.append(past_dates[hits[-1]] if len(hits) else np.datetime64("NaT"))
+        return pd.Series(out)
+
+    high_dates, low_dates = [], []
+    for _, g in df.groupby("Symbol", sort=False):
+        high_dates.append(recent_date_match(g["P_Close"].values, g["Trade_Date"].values, g["F52W_High"].values))
+        low_dates.append(recent_date_match(g["P_Close"].values,  g["Trade_Date"].values, g["F52W_Low"].values))
+
+    df["F52W_H_DATE"] = pd.concat(high_dates, ignore_index=True)
+    df["F52W_L_DATE"] = pd.concat(low_dates, ignore_index=True)
+    return df
+
+def read_all_parquet_history(bucket_name: str, folder: str) -> pd.DataFrame:
+    prefix = f"{bucket_name}/{folder}"
+    paths = sorted([p for p in fs.ls(prefix) if p.endswith(".parquet")]) if fs.exists(prefix) else []
+    if not paths:
+        return pd.DataFrame()
+    dfs = [pd.read_parquet(f"gs://{p}") for p in paths]
+    out = pd.concat(dfs, ignore_index=True)
+    out["Trade_Date"] = pd.to_datetime(out["Trade_Date"], errors="coerce")
+    return out
+
+#----------------------------------------------------------------------------------------------------------------
 
 def fetch_json(url: str, timeout: int = 30, retries: int = 3, wait: int = 3):
     for attempt in range(retries):
@@ -413,25 +585,30 @@ def run_daily_bulk_download(tickers: List[str]):
     
     # Fundamentals enrichment
     extra_rows = []
+    ALL_EARNINGS_GCS = resolve_all_earnings_gcs(date_str)
+    earnings_index = load_earnings_calendar_from_gcs(ALL_EARNINGS_GCS)
+    
     fundamentals_json_gcs_path = gcs_path(f"{base_folder}/fundamentals_{date_str}.json")
     fundamentals_json_list = []
     for i, tk in enumerate(tqdm(tickers, desc="Fundamentals", unit="tk")):
         try:
             log_progress(f"[{i+1}/{len(tickers)}] Fetching fundamentals for: {tk}")
             f_json = fetch_json(
-                f"{URL_FUNDAMENTAL}/{tk}?filter=General::Code,SharesStats,Technicals,Earnings::Trend&api_token={EOD_API_TOKEN}&fmt=json",
+                f"{URL_FUNDAMENTAL}/{tk}?filter=General::Code,SharesStats,Technicals&api_token={EOD_API_TOKEN}&fmt=json",
                 timeout=30
             )
-            earnings_trend = f_json.get("Earnings::Trend", {})
-            future_dates = []
-            for k, v in earnings_trend.items():
-                try:
-                    rep_date = datetime.strptime(k, "%Y-%m-%d").date()
-                    if rep_date > today:
-                        future_dates.append(rep_date)
-                except:
-                    continue
-            next_earnings_date = min(future_dates).isoformat() if future_dates else None
+            #earnings_trend = f_json.get("Earnings::Trend", {})
+            #future_dates = []
+            #for k, v in earnings_trend.items():
+                #try:
+                   # rep_date = datetime.strptime(k, "%Y-%m-%d").date()
+                   # if rep_date > today:
+                   #     future_dates.append(rep_date)
+               # except:
+            #    continue
+            #next_earnings_date = min(future_dates).isoformat() if future_dates else None  --- remove after test
+            nxt_dt = immediate_next_earnings(tk, today, earnings_index)
+            next_earnings_date = None if pd.isna(nxt_dt) else pd.to_datetime(nxt_dt).date().isoformat()
             extra_rows.append({
                 "Symbol": f_json.get("General::Code", tk),
                 "Shares_Out": f_json.get("SharesStats", {}).get("SharesOutstanding"),
@@ -439,10 +616,12 @@ def run_daily_bulk_download(tickers: List[str]):
                 "Shares_Insiders": f_json.get("SharesStats", {}).get("PercentInsiders"),
                 "Shares_Institutions": f_json.get("SharesStats", {}).get("PercentInstitutions"),
                 "Short_Ratio": f_json.get("Technicals", {}).get("ShortRatio"),
-                "Short_Percent_Float": f_json.get("Technicals", {}).get("ShortPercent"),
+                "Short_Percent_Float": f_json.get("Technicals", {}).get("ShortPercent") ,
                 "Earnings_Date": next_earnings_date
             })
+            
             f_json["Symbol"] = tk
+            f_json["Earnings_Date_From_AllEarnings"] = next_earnings_date
             fundamentals_json_list.append(f_json)
         except Exception as e:
             log_progress(f"[ERROR] fundamentals {tk}: {e}")
