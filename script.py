@@ -20,10 +20,11 @@ import glob
 from google.cloud import secretmanager, storage
 import tempfile
 from bisect import bisect_right
-
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Environment / logging
+# SECRETS
 # ──────────────────────────────────────────────────────────────────────────────
 # load_dotenv()  # read .env if present
 
@@ -94,7 +95,9 @@ def read_csv_from_gcs(blob_path: str) -> pd.DataFrame:
     blob = bucket.blob(blob_path)
     content = blob.download_as_text()
     return pd.read_csv(io.StringIO(content), keep_default_na=False, na_values=[""])
-
+# ──────────────────────────────────────────────────────────────────────────────
+# LOGGING         
+# ──────────────────────────────────────────────────────────────────────────────
 def log_progress(msg: str):
     log_path = "market_data/progress.log"
     client = storage.Client()
@@ -116,7 +119,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Helpers
+# HELPERS
 # ──────────────────────────────────────────────────────────────────────────────
 
 def get_previous_trading_day(today: date) -> Optional[date]:
@@ -204,8 +207,7 @@ def immediate_next_earnings(symbol: str, ref_date: pd.Timestamp, earnings_index:
     i = bisect_right(dates, pd.to_datetime(ref_date))
     return dates[i] if i < len(dates) else pd.NaT
 
-#----------------------------------------------------------------------------------------------------------------
-
+# -------- fOMRATTING DATA FOR SQL  ----------------------------------
 #def process_chunk(chunk): ---remove after test
 #    if 'MarketCapitalization' in chunk.columns:
  #       chunk['MarketCapitalization'] = pd.to_numeric(chunk['MarketCapitalization'], errors='coerce').round(2)
@@ -348,6 +350,7 @@ def read_all_parquet_history(bucket_name: str, folder: str) -> pd.DataFrame:
     out["Trade_Date"] = pd.to_datetime(out["Trade_Date"], errors="coerce")
     return out
 
+
 #----------------------------------------------------------------------------------------------------------------
 
 def fetch_json(url: str, timeout: int = 30, retries: int = 3, wait: int = 3):
@@ -374,19 +377,19 @@ def get_finnhub_df(client, func: Callable, ticker: str, freq: str) -> pd.DataFra
         logger.error("Finnhub error %s / %s : %s", ticker, func.__name__, e)
         return pd.DataFrame()
         
-def get_finnhub_news(client, func: Callable, ticker: str, from_date: datetime, to_date: datetime ):
-    try:
-        data = func(ticker,from_date,to_date) or {}
-        return data
-    except Exception as e:
-        logger.error("Finnhub error %s / %s : %s", ticker, func.__name__, e)
-        return {}
+#def get_finnhub_news(client, func: Callable, ticker: str, from_date: datetime, to_date: datetime ): --- remove after test
+#    try:
+#        data = func(ticker,from_date,to_date) or {}
+#        return data
+#    except Exception as e:
+#        logger.error("Finnhub error %s / %s : %s", ticker, func.__name__, e)
+#        return {}
 
 def run_finnhub_data_pipeline(tickers: List[str]):
     today_iso = date.today().isoformat()
     raw_dir = f"daily/{today_iso}/FINNHUB/raw_data"
     tx_dir = f"daily/{today_iso}/FINNHUB/transformed"
-    news_dir =f"news/{today_iso}"
+    #news_dir =f"news/{today_iso}" ---remove after test
     #Path(news_dir).mkdir(parents=True, exist_ok=True)
     
     client = fb.Client(api_key=FINNHUB_API_KEY)
@@ -396,24 +399,25 @@ def run_finnhub_data_pipeline(tickers: List[str]):
         "revenue_estimates_annual":    lambda t: get_finnhub_df(client, client.company_revenue_estimates, t, "annual"),
         "eps_estimates_quarterly":     lambda t: get_finnhub_df(client, client.company_eps_estimates,     t, "quarterly"),
         "eps_estimates_annual":        lambda t: get_finnhub_df(client, client.company_eps_estimates,     t, "annual")#,
-        #"news_data":                   lambda t: get_finnhub_news(client, client.company_news,t,today_iso,today_iso),
+        #"news_data":                   lambda t: get_finnhub_news(client, client.company_news,t,today_iso,today_iso), --- remove after test
     }
 
-    collected: Dict[str, List[pd.DataFrame]] = {k: [] for k in funcs if k != "news_data"}
+    collected: Dict[str, List[pd.DataFrame]] = {k: [] for k in funcs.keys()}
+    
     for i, tk in enumerate(tqdm(tickers, desc="Finnhub", unit="ticker")):
         log_progress(f"[{i+1}/{len(tickers)}] Fetching from Finnhub: {tk}")
         for name, fn in funcs.items():
             try: 
                  df = fn(tk)
-                 if name == "news_data":          
-                        json_str = json.dumps(df, indent=2)
-                        gcs_dest = gcs_path(f"{news_dir}/{tk}.json")
-                        upload_string_to_gcs("historical_data_evoke", gcs_dest, json_str)          
-                 else:
-                        if not df.empty:
-                            df.insert(0, "ticker", tk)
-                            df.insert(1, "api_run_date", today_iso)
-                            collected[name].append(df)
+                 #if name == "news_data":    ---remove after test       
+                 #       json_str = json.dumps(df, indent=2)
+                 #       gcs_dest = gcs_path(f"{news_dir}/{tk}.json")
+                 #       upload_string_to_gcs("historical_data_evoke", gcs_dest, json_str)          
+                 #else:
+                if not df.empty:
+                    df.insert(0, "ticker", tk)
+                    df.insert(1, "api_run_date", today_iso)
+                    collected[name].append(df)
             except Exception as e:
                 log_progress(f"[{i+1}/{len(tickers)}] ERROR {name} for {tk}: {e}")
         time.sleep(RATE_LIMIT_SEC)
@@ -464,7 +468,7 @@ def run_finnhub_data_pipeline(tickers: List[str]):
 # ──────────────────────────────────────────────────────────────────────────────
 # EODHD daily download
 # ──────────────────────────────────────────────────────────────────────────────
-def append_daily_chunk_to_latest(daily_chunk, date_column, bucket_name, final_data_folder, base_name, max_rows, project=None):
+def append_daily_chunk_to_latest(daily_chunk, date_column, bucket_name, final_data_folder, base_name, max_rows, project=None): #-----REMOVE AFTER TEST
 
     fs = gcsfs.GCSFileSystem(project=project)
     client = storage.Client(project=project)
@@ -522,6 +526,7 @@ def run_daily_bulk_download(tickers: List[str]):
     nyse = mcal.get_calendar('NYSE')
     schedule = nyse.schedule(start_date=today, end_date=today)
     trading_days = schedule.index.date.tolist()
+    
     if today not in trading_days:
         message = f"**Today ({today}) is not a trading day. Skipping EODHD download.**"
         log_progress(message)
@@ -531,10 +536,12 @@ def run_daily_bulk_download(tickers: List[str]):
     base_folder = f"daily/{date_str}/EODHD"
     log_lines: List[str] = []
     stock9k = load_master_tickers()
+    
     # Download bulk JSON
     bulk_json_gcs_path = gcs_path(f"{raw_folder}/eod_us_{date_str}.json")
     fundamentals_json_gcs_path = gcs_path(f"{base_folder}/fundamentals_{date_str}.json")
     merged_csv_gcs_path = gcs_path(f"{base_folder}/eod_us_{date_str}_merged.csv")
+    
     try:
         logger.info("[EODHD] Downloading bulk for %s…", date_str)
         js = fetch_json(
@@ -552,9 +559,9 @@ def run_daily_bulk_download(tickers: List[str]):
 
     if "MarketCapitalization" in df.columns:
         df["MarketCapitalization"] = (pd.to_numeric(df["MarketCapitalization"], errors="coerce") / 1e6).round(2)
-    
-    df['date'] = date_str
-    df["date"] = pd.to_datetime(df["date"])
+    df["date"] = pd.to_datetime(date_str)
+    #df['date'] = date_str
+    #df["date"] = pd.to_datetime(df["date"])
     #df["Close_to_Close (%)"]=0.0
     #df["Close_to_Open (% from Prev Day Close)"]=0.0
     # Merge with previous day's close and volume
@@ -577,7 +584,7 @@ def run_daily_bulk_download(tickers: List[str]):
         df["% Prev Close to Open"] = pd.NA
         
     
-    # end of ashwin changes
+    
     # Intraday ratios
     df["High_Close(%)"] = ((df["high"] - df["close"]) / df["close"] * 100).round(2)
     df["Low_Close(%)"]  = ((df["low"]  - df["close"]) / df["close"] * 100).round(2)
@@ -642,16 +649,66 @@ def run_daily_bulk_download(tickers: List[str]):
             df[col] = pd.to_numeric(df[col], errors="ignore")
 
     final_df = format_data(df)
-    upload_dataframe_to_gcs(final_df, merged_csv_gcs_path)
+    upload_dataframe_to_gcs(final_df, merged_csv_gcs_path) 
     log_progress(f"✅ EODHD data pipeline complete for {date_str}")
-    log_progress(f" Merging {date_str} with the historical data")
-    final_df = process_chunk(final_df)
-    append_daily_chunk_to_latest(daily_chunk=final_df,date_column="Trade_Date",bucket_name="historical_data_evoke",final_data_folder="Final_data_sql",base_name="eodhd_",max_rows=1_000_000)
-    log_progress(f"✅ EODHD data pipeline completed mergeing for {date_str}")
 
+    #final_df = process_chunk(final_df) --- REMOVE AFTER TEST
+    #append_daily_chunk_to_latest(daily_chunk=final_df,date_column="Trade_Date",bucket_name="historical_data_evoke",final_data_folder="Final_data_sql",base_name="eodhd_",max_rows=1_000_000) ---REMOVE AFTER TEST
+    # Build cleaned SQL-friendly CSV with 52w metrics
+    try:
+        # Read back the merged CSV we just uploaded (ensures we're using identical contents)
+        with fs.open(f"{BUCKET_NAME}/{DAILY_INPUT_BASE}/{date_str}/EODHD/eod_us_{date_str}_merged.csv", "rb") as f:
+            today_raw = pd.read_csv(f, keep_default_na=False, na_values=[""])
+        today_raw["Trade_Date"] = pd.to_datetime(date_str)
+        today_fmt = rename_and_format(today_raw)
+
+        # Historical parquet for 52w context
+        hist_df = read_all_parquet_history(BUCKET_NAME, HIST_PARQUET_FOLDER)
+
+        for col in ["Symbol", "Trade_Date", "P_Close"]:
+            if col not in today_fmt.columns:
+                today_fmt[col] = pd.NA
+
+        combo = pd.concat([hist_df, today_fmt], ignore_index=True)
+        combo = compute_52w_metrics(combo)
+        today_enriched = combo[combo["Trade_Date"] == pd.to_datetime(date_str)].copy()
+
+        out_blob = f"{DAILY_OUTPUT_BASE}/eod_us_{pd.to_datetime(date_str).strftime('%Y%m%d')}_cleaned.csv"
+        tmp = "/tmp/_daily_clean.csv"
+        today_enriched.to_csv(tmp, index=False)
+        bucket.blob(out_blob).upload_from_filename(tmp)
+        os.remove(tmp)
+
+        log_progress(f"✅ Uploaded cleaned CSV: gs://{BUCKET_NAME}/{out_blob}  ({len(today_enriched)} rows)")
+    except Exception as e:
+        log_progress(f"[ERROR] Cleaning/52w stage failed: {e}")
+        return "Pipeline finished with errors at cleaning/52w stage"
+        
+    try:
+        new_hist = pd.concat([hist_df, today_enriched], ignore_index=True)
+        new_hist.sort_values("Trade_Date", inplace=True)
+
+        # Re-split into chunks of ≤1M rows
+        max_rows = 1_000_000
+        chunks = [new_hist.iloc[i:i+max_rows] for i in range(0, len(new_hist), max_rows)]
+        for chunk in chunks:
+            min_date = chunk["Trade_Date"].min().strftime("%Y%m%d")
+            max_date = chunk["Trade_Date"].max().strftime("%Y%m%d")
+            filename = f"eodhd_{min_date}_to_{max_date}.parquet"
+            tmp_path = f"/tmp/{filename}"
+            chunk.to_parquet(tmp_path, index=False)
+            dest_path = f"{HIST_PARQUET_FOLDER}/{filename}"
+            bucket.blob(dest_path).upload_from_filename(tmp_path)
+            os.remove(tmp_path)
+            log_progress(f"📤 Uploaded parquet chunk: gs://{BUCKET_NAME}/{dest_path} ({len(chunk)} rows)")
+    except Exception as e:
+        log_progress(f"[ERROR] Failed parquet append stage: {e}")
+
+    return f"Pipeline completed for {date_str}"
+    
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Convenience loader
+# LOAD TICKERS    
 # ──────────────────────────────────────────────────────────────────────────────
 
 def load_tickers(path: str = None, limit: int | None = None) -> List[str]:
