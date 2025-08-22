@@ -990,7 +990,7 @@ def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data
     import datetime, json
     from google.cloud import storage
 
-    # Normalize all date inputs to datetime.date
+    # Normalize input dates
     def normalize(d):
         if isinstance(d, datetime.datetime):
             return d.date()
@@ -1007,28 +1007,27 @@ def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data
     # Load JSON from GCS
     client = storage.Client()
     try:
-        blob = client.bucket(bucket_name).blob("ALL_EARNINGS_2025.json")
+        blob = client.bucket(bucket_name).blob("market_data/earnings_calendar.json")
         content = blob.download_as_text()
-        root_data = json.loads(content)
-        raw_data = root_data.get("earningsCalendar", {})
+        raw_data = json.loads(content)
     except Exception as e:
         print(f"[ERROR] Failed to load or parse JSON: {e}")
         return []
 
-    # Filter entries by date range
+    # Filter entries by key (date string)
     filtered = []
-    for date_str in sorted(raw_data.keys()):
+    for date_str, entries in raw_data.items():
         try:
             dt = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
             if from_dt <= dt <= to_dt:
-                for entry in raw_data[date_str]:
-                    entry["date"] = date_str
-                    filtered.append(entry)
-        except Exception as e:
-            print(f"[WARN] Skipped date {date_str} due to error: {e}")
+                for e in entries:
+                    e["date"] = date_str  # inject the date explicitly
+                    filtered.append(e)
+        except Exception as ex:
+            print(f"[WARN] Skipping date {date_str} due to: {ex}")
             continue
 
-    print(f"[INFO] Loaded {len(filtered)} entries between {from_dt} and {to_dt}")
+    print(f"[INFO] Loaded {len(filtered)} earnings entries between {from_dt} and {to_dt}")
     return filtered
     
 def render_earnings_calendar(entries, ticker_filter=""):
@@ -1272,6 +1271,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886)
+
 
 
 
