@@ -476,7 +476,7 @@ def run_finnhub_data_pipeline(tickers: List[str]):
 
 def run_daily_bulk_download(tickers: List[str]):
     
-    date_str = "2025-08-21"
+    date_str = "2025-08-20"
     today = datetime.strptime(date_str, "%Y-%m-%d").date()
     #today= date.today()
     #date_str = today.isoformat()
