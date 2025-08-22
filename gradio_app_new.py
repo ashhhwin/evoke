@@ -990,7 +990,7 @@ def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data
     import datetime, json
     from google.cloud import storage
 
-    # Parse date inputs to datetime.date
+    # Normalize all date inputs to datetime.date
     def normalize(d):
         if isinstance(d, datetime.datetime):
             return d.date()
@@ -1009,19 +1009,20 @@ def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data
     try:
         blob = client.bucket(bucket_name).blob("ALL_EARNINGS_2025.json")
         content = blob.download_as_text()
-        raw_data = json.loads(content)
+        root_data = json.loads(content)
+        raw_data = root_data.get("earningsCalendar", {})
     except Exception as e:
         print(f"[ERROR] Failed to load or parse JSON: {e}")
         return []
 
-    # Iterate over keys and filter entries
+    # Filter entries by date range
     filtered = []
     for date_str in sorted(raw_data.keys()):
         try:
             dt = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
             if from_dt <= dt <= to_dt:
                 for entry in raw_data[date_str]:
-                    entry["date"] = date_str  # Ensure each has date
+                    entry["date"] = date_str
                     filtered.append(entry)
         except Exception as e:
             print(f"[WARN] Skipped date {date_str} due to error: {e}")
@@ -1271,6 +1272,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886)
+
 
 
 
