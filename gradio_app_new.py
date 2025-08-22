@@ -990,9 +990,19 @@ def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data
     import datetime, json
     from google.cloud import storage
 
-    # Parse input dates
-    from_dt = from_date.date() if isinstance(from_date, datetime.datetime) else datetime.datetime.strptime(str(from_date), "%Y-%m-%d").date()
-    to_dt = to_date.date() if isinstance(to_date, datetime.datetime) else datetime.datetime.strptime(str(to_date), "%Y-%m-%d").date()
+    # Parse date inputs to datetime.date
+    def normalize(d):
+        if isinstance(d, datetime.datetime):
+            return d.date()
+        elif isinstance(d, datetime.date):
+            return d
+        elif isinstance(d, str):
+            return datetime.datetime.strptime(d, "%Y-%m-%d").date()
+        else:
+            raise ValueError(f"Unsupported date format: {d}")
+
+    from_dt = normalize(from_date)
+    to_dt = normalize(to_date)
 
     # Load JSON from GCS
     client = storage.Client()
@@ -1004,18 +1014,20 @@ def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data
         print(f"[ERROR] Failed to load or parse JSON: {e}")
         return []
 
-    # Flatten and filter based on date range
+    # Iterate over keys and filter entries
     filtered = []
-    for date_str, entries in raw_data.items():
+    for date_str in sorted(raw_data.keys()):
         try:
             dt = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
             if from_dt <= dt <= to_dt:
-                for e in entries:
-                    e["date"] = date_str  # Ensure each entry has its date
-                    filtered.append(e)
-        except:
+                for entry in raw_data[date_str]:
+                    entry["date"] = date_str  # Ensure each has date
+                    filtered.append(entry)
+        except Exception as e:
+            print(f"[WARN] Skipped date {date_str} due to error: {e}")
             continue
 
+    print(f"[INFO] Loaded {len(filtered)} entries between {from_dt} and {to_dt}")
     return filtered
     
 def render_earnings_calendar(entries, ticker_filter=""):
@@ -1259,6 +1271,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886)
+
 
 
 
