@@ -6042,7 +6042,7 @@ NBR,Nabors Industries Ltd.,Common Stock,Energy,Oil & Gas Drilling,True
 NC,"NACCO Industries, Inc.",Common Stock,Energy,Thermal Coal,False
 NAMM,Namib Minerals,Common Stock,,,False
 NNDM,Nano Dimension Ltd.,Common Stock,Technology,Computer Hardware,True
-NA,Nano Labs Ltd,,Technology,Semiconductors,False
+NA,Nano Labs Ltd,Common Stock,Technology,Semiconductors,False
 NNE,NANO Nuclear Energy Inc.,Common Stock,Industrials,Specialty Industrial Machinery,True
 NBTX,Nanobiotix S.A.,Common Stock,Healthcare,Biotechnology,False
 NAOV,"NanoVibronix, Inc.",Common Stock,Healthcare,Medical Devices,False
@@ -9659,3 +9659,4 @@ CNET,ZW Data Action Technologies Inc.,Common Stock,Communication Services,Advert
 ZYME,Zymeworks Inc.,Common Stock,Healthcare,Biotechnology,True
 ZYXI,"Zynex, Inc.",Common Stock,Healthcare,Medical Distribution,True
 ZVSA,"ZyVersa Therapeutics, Inc.",Common Stock,Healthcare,Biotechnology,False
+
