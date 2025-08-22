@@ -187,7 +187,7 @@ def resolve_all_earnings_gcs(date_ref: str | datetime | date | None = None) -> s
     else:
         yr = pd.to_datetime(date_ref).year
     return f"gs://historical_data_evoke/ALL_EARNINGS_{yr}.json"
-    
+'''    
 def load_earnings_calendar_from_gcs(gcs_uri: str) -> dict:
     fs = gcsfs.GCSFileSystem()
     with fs.open(gcs_uri, "rb") as f:
@@ -226,6 +226,76 @@ def immediate_next_earnings(symbol: str, ref_date: pd.Timestamp, earnings_index:
         return pd.NaT
     i = bisect_right(dates, pd.to_datetime(ref_date))
     return dates[i] if i < len(dates) else pd.NaT
+'''
+def load_earnings_calendar_from_gcs(gcs_uri: str) -> Dict[str, List[pd.Timestamp]]:
+    """
+    EXPECTED FORMAT:
+    {
+      "YYYY-MM-DD": [
+          {"symbol": "AAPL", ...},
+          {"symbol": "MSFT", ...},
+          ...
+      ],
+      "YYYY-MM-DD": [...]
+    }
+
+    RETURNS:
+      {
+        "AAPL": [Timestamp(...), ...],
+        "MSFT": [Timestamp(...), ...],
+        ...
+      }
+      (dates are sorted & unique)
+    """
+    fs = gcsfs.GCSFileSystem()
+    with fs.open(gcs_uri, "rb") as f:
+        data = json.load(f)
+
+    cal: Dict[str, List[pd.Timestamp]] = {}
+
+    for date_key, entries in (data or {}).items():
+        day_dt = pd.to_datetime(date_key, errors="coerce")
+        if pd.isna(day_dt) or not isinstance(entries, list):
+            continue
+
+        for row in entries:
+            if not isinstance(row, dict):
+                continue
+            sym = row.get("symbol")
+            if not sym:
+                continue
+            key = normalize_earnings_symbol(sym)
+            cal.setdefault(key, []).append(day_dt)
+
+    # Deduplicate and sort per symbol
+    for k, lst in list(cal.items()):
+        cal[k] = sorted(set(pd.to_datetime(lst, errors="coerce").dropna()))
+
+    return cal
+
+
+def immediate_next_earnings(
+    symbol: str, ref_date: pd.Timestamp, earnings_index: Dict[str, List[pd.Timestamp]]
+) -> pd.Timestamp:
+    """
+    Return the first earnings date strictly AFTER ref_date for symbol,
+    else pd.NaT.
+    """
+    if ref_date is None or pd.isna(ref_date):
+        return pd.NaT
+
+    key = normalize_daily_symbol(symbol)
+    dates = earnings_index.get(key, [])
+    if not dates:
+        return pd.NaT
+
+    ref_ts = pd.to_datetime(ref_date, errors="coerce")
+    if pd.isna(ref_ts):
+        return pd.NaT
+
+    i = bisect_right(dates, ref_ts)
+    return dates[i] if i < len(dates) else pd.NaT
+
 
 # -------- fOMRATTING DATA FOR SQL  ----------------------------------
 #def process_chunk(chunk): ---remove after test
