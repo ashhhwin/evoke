@@ -476,10 +476,10 @@ def run_finnhub_data_pipeline(tickers: List[str]):
 
 def run_daily_bulk_download(tickers: List[str]):
     
-    #date_str = "2025-08-19"
-    #today = datetime.strptime(date_str, "%Y-%m-%d").date()
-    today= date.today()
-    date_str = today.isoformat()
+    date_str = "2025-08-21"
+    today = datetime.strptime(date_str, "%Y-%m-%d").date()
+    #today= date.today()
+    #date_str = today.isoformat()
     nyse = mcal.get_calendar('NYSE')
     schedule = nyse.schedule(start_date=today, end_date=today)
     trading_days = schedule.index.date.tolist()
@@ -543,7 +543,8 @@ def run_daily_bulk_download(tickers: List[str]):
     
     # Fundamentals enrichment
     extra_rows = []
-    ALL_EARNINGS_GCS = resolve_all_earnings_gcs(date_str)
+    #ALL_EARNINGS_GCS = resolve_all_earnings_gcs(date_str)
+    ALL_EARNINGS_GCS = "gs://historical_data_evoke/market_data/earnings_calendar.json"
     earnings_index = load_earnings_calendar_from_gcs(ALL_EARNINGS_GCS)
     
     fundamentals_json_gcs_path = gcs_path(f"{base_folder}/fundamentals_{date_str}.json")
@@ -1108,7 +1109,7 @@ run_finnhub_data_pipeline(tickers)
 import sys
 if __name__ == "__main__":
     try:
-        tickers = load_tickers(limit=None)
+        tickers = load_tickers(limit=5)
         run_pipelines_concurrently(tickers)
         logger.info("All pipelines completed successfully")
         generate_daily_revisions_report()
