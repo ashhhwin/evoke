@@ -23,6 +23,17 @@ import tempfile
 from bisect import bisect_right
 import pyarrow as pa
 import pyarrow.parquet as pq
+#---------
+from jinja2 import Template
+import gcsfs
+import re
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+#----------
+from eps_rev_changes import generate_daily_revisions_report
 
 # ──────────────────────────────────────────────────────────────────────────────
 # SECRETS
@@ -1100,6 +1111,8 @@ if __name__ == "__main__":
         tickers = load_tickers(limit=None)
         run_pipelines_concurrently(tickers)
         logger.info("All pipelines completed successfully")
+        generate_daily_revisions_report()
+        logger.info("Sent Email if changes were detected")
         sys.exit(0)
     except Exception as e:
         logger.error(f"Fatal error: {e}")
