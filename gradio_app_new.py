@@ -961,6 +961,7 @@ def render_earnings_calendar(entries, ticker_filter=""):
 
 ## ashwin earnings changes end here
 '''
+'''
 def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data_evoke"):
     import datetime, json
     from google.cloud import storage
@@ -984,7 +985,39 @@ def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data
             continue
 
     return filtered
+'''
+def load_earnings_calendar_json(from_date, to_date, bucket_name="historical_data_evoke"):
+    import datetime, json
+    from google.cloud import storage
 
+    # Parse input dates
+    from_dt = from_date.date() if isinstance(from_date, datetime.datetime) else datetime.datetime.strptime(str(from_date), "%Y-%m-%d").date()
+    to_dt = to_date.date() if isinstance(to_date, datetime.datetime) else datetime.datetime.strptime(str(to_date), "%Y-%m-%d").date()
+
+    # Load JSON from GCS
+    client = storage.Client()
+    try:
+        blob = client.bucket(bucket_name).blob("ALL_EARNINGS_2025.json")
+        content = blob.download_as_text()
+        raw_data = json.loads(content)
+    except Exception as e:
+        print(f"[ERROR] Failed to load or parse JSON: {e}")
+        return []
+
+    # Flatten and filter based on date range
+    filtered = []
+    for date_str, entries in raw_data.items():
+        try:
+            dt = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+            if from_dt <= dt <= to_dt:
+                for e in entries:
+                    e["date"] = date_str  # Ensure each entry has its date
+                    filtered.append(e)
+        except:
+            continue
+
+    return filtered
+    
 def render_earnings_calendar(entries, ticker_filter=""):
     import datetime
     from collections import defaultdict
@@ -1226,6 +1259,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886)
+
 
 
 
