@@ -546,7 +546,7 @@ def run_finnhub_data_pipeline(tickers: List[str]):
 
 def run_daily_bulk_download(tickers: List[str]):
     
-    date_str = "2025-08-20"
+    date_str = "2025-07-22"
     today = datetime.strptime(date_str, "%Y-%m-%d").date()
     #today= date.today()
     #date_str = today.isoformat()
@@ -1179,7 +1179,7 @@ run_daily_bulk_download(tickers)
 import sys
 if __name__ == "__main__":
     try:
-        tickers = load_tickers(limit=5)
+        tickers = load_tickers(limit=None)
         run_pipelines_concurrently(tickers)
         logger.info("All pipelines completed successfully")
         generate_daily_revisions_report()
