@@ -483,7 +483,6 @@ def plot_close_price_history(ticker: str):
     try:
         df = load_historical_close_prices(ticker)
         
-        # Validate data
         if df is None or len(df) < 2:
             fig = go.Figure()
             fig.add_annotation(
@@ -496,61 +495,37 @@ def plot_close_price_history(ticker: str):
         
         df = df.sort_values("Trade_Date").reset_index(drop=True)
         
-        # Calculate price metrics
+        # Calculate metrics
         current_price = df["P_Close"].iloc[-1]
         start_price = df["P_Close"].iloc[0]
         price_high = df["P_Close"].max()
         price_low = df["P_Close"].min()
         
-        # Calculate returns with safety checks
         returns_1d = ((df["P_Close"].iloc[-1] / df["P_Close"].iloc[-2]) - 1) * 100 if len(df) > 1 else 0
         returns_1w = ((df["P_Close"].iloc[-1] / df["P_Close"].iloc[-5]) - 1) * 100 if len(df) >= 5 else 0
         returns_1m = ((df["P_Close"].iloc[-1] / df["P_Close"].iloc[-22]) - 1) * 100 if len(df) >= 22 else 0
         returns_period = ((current_price / start_price) - 1) * 100
         
-        # Volume metrics
         avg_volume = df["Volume"].mean()
         current_volume = df["Volume"].iloc[-1]
         
-        # Calculate price changes for volume coloring
+        # Volume colors based on price movement
         price_change = df["P_Close"].pct_change().fillna(0)
-        volume_ratio = df["Volume"] / avg_volume
-        
-        # Create volume colors
-        volume_colors = []
-        for i in range(len(df)):
-            if price_change.iloc[i] >= 0:  # Price up
-                if volume_ratio.iloc[i] > 2.0:
-                    volume_colors.append("#2E7D32")  # Dark green - high volume up
-                elif volume_ratio.iloc[i] > 1.5:
-                    volume_colors.append("#43A047")  # Medium green - medium volume up
-                else:
-                    volume_colors.append("#66BB6A")  # Light green - normal volume up
-            else:  # Price down
-                if volume_ratio.iloc[i] > 2.0:
-                    volume_colors.append("#C62828")  # Dark red - high volume down
-                elif volume_ratio.iloc[i] > 1.5:
-                    volume_colors.append("#E53935")  # Medium red - medium volume down
-                else:
-                    volume_colors.append("#EF5350")  # Light red - normal volume down
+        volume_colors = ['#2E7D32' if pc >= 0 else '#C62828' for pc in price_change]
         
         # Price line color
         price_color = "#1B5E20" if current_price >= start_price else "#B71C1C"
         
-        # Create subplots: Price chart on left, stats on right, volume below price
+        # Create simple 2-row layout: Price on top, Volume on bottom
         fig = make_subplots(
-            rows=2, cols=2,
-            column_widths=[0.7, 0.3],
+            rows=2, cols=1,
             row_heights=[0.7, 0.3],
-            vertical_spacing=0.08,
-            horizontal_spacing=0.05,
-            specs=[
-                [{"secondary_y": False}, {"rowspan": 2}],
-                [{"secondary_y": False}, None]
-            ]
+            shared_xaxes=True,
+            vertical_spacing=0.05,
+            subplot_titles=[f"{ticker.upper()} Price", "Volume"]
         )
         
-        # Main price chart
+        # Price chart
         fig.add_trace(
             go.Scatter(
                 x=df["Trade_Date"],
@@ -558,9 +533,30 @@ def plot_close_price_history(ticker: str):
                 mode="lines",
                 line=dict(color=price_color, width=2.5),
                 name="Price",
-                hovertemplate="<b>%{x}</b><br>Price: $%{y:.2f}<extra></extra>"
+                hovertemplate="Date: %{x}<br>Price: $%{y:.2f}<extra></extra>"
             ),
             row=1, col=1
+        )
+        
+        # Add support and resistance lines
+        fig.add_hline(
+            y=price_high, 
+            line_dash="dot", 
+            line_color="#D32F2F", 
+            opacity=0.7,
+            annotation_text=f"High: ${price_high:.2f}",
+            annotation_position="top right",
+            row=1
+        )
+        
+        fig.add_hline(
+            y=price_low, 
+            line_dash="dot", 
+            line_color="#1976D2", 
+            opacity=0.7,
+            annotation_text=f"Low: ${price_low:.2f}",
+            annotation_position="bottom right",
+            row=1
         )
         
         # Volume chart
@@ -569,107 +565,73 @@ def plot_close_price_history(ticker: str):
                 x=df["Trade_Date"],
                 y=df["Volume"],
                 marker_color=volume_colors,
-                opacity=0.7,
+                opacity=0.8,
                 name="Volume",
-                hovertemplate="<b>%{x}</b><br>Volume: %{y:,.0f}<extra></extra>"
+                hovertemplate="Date: %{x}<br>Volume: %{y:,.0f}<extra></extra>"
             ),
             row=2, col=1
         )
         
-        # Add volume moving average line
-        if len(df) >= 14:
-            volume_ma = df["Volume"].rolling(14).mean()
+        # Volume moving average
+        if len(df) >= 20:
+            vol_ma = df["Volume"].rolling(20).mean()
             fig.add_trace(
                 go.Scatter(
                     x=df["Trade_Date"],
-                    y=volume_ma,
+                    y=vol_ma,
                     mode="lines",
-                    line=dict(color="#FF6F00", width=2),
-                    name="14-day MA",
-                    hovertemplate="Volume MA: %{y:,.0f}<extra></extra>"
+                    line=dict(color="#FF6F00", width=2.5),
+                    name="Volume MA(20)",
+                    hovertemplate="Date: %{x}<br>20-day MA: %{y:,.0f}<extra></extra>"
                 ),
                 row=2, col=1
             )
         
-        # Statistics text panel
-        stats_text = f"""<b>{ticker.upper()} STATISTICS</b>
-
-<b>PRICE DATA</b>
-Current: <b>${current_price:.2f}</b>
-High: ${price_high:.2f}
-Low: ${price_low:.2f}
-Range: {((current_price - price_low)/(price_high - price_low)*100):.1f}%
-
-<b>RETURNS</b>
-1 Day: <span style="color: {'green' if returns_1d >= 0 else 'red'}"><b>{returns_1d:+.2f}%</b></span>
-1 Week: <span style="color: {'green' if returns_1w >= 0 else 'red'}"><b>{returns_1w:+.2f}%</b></span>
-1 Month: <span style="color: {'green' if returns_1m >= 0 else 'red'}"><b>{returns_1m:+.2f}%</b></span>
-Total: <span style="color: {'green' if returns_period >= 0 else 'red'}"><b>{returns_period:+.2f}%</b></span>
-
-<b>VOLUME</b>
-Current: <b>{current_volume/1e6:.1f}M</b>
-Average: {avg_volume/1e6:.1f}M
-Ratio: {current_volume/avg_volume:.1f}x
-
-<b>LEGEND</b>
-<span style="color: #66BB6A">■</span> Normal Vol Up
-<span style="color: #EF5350">■</span> Normal Vol Down
-<span style="color: #43A047">■</span> High Vol Up
-<span style="color: #E53935">■</span> High Vol Down
-<span style="color: #2E7D32">■</span> Very High Vol Up
-<span style="color: #C62828">■</span> Very High Vol Down"""
-        
-        # Add stats annotation
-        fig.add_annotation(
-            text=stats_text,
-            xref="x2", yref="y2",
-            x=0.5, y=0.5,
-            showarrow=False,
-            align="left",
-            xanchor="center",
-            yanchor="middle",
-            font=dict(size=11, family="monospace"),
-            bgcolor="rgba(255,255,255,0.9)",
-            bordercolor="lightgray",
-            borderwidth=1
-        )
-        
         # Update layout
         fig.update_layout(
-            height=700,
+            height=800,
             showlegend=False,
             title=dict(
-                text=f"{ticker.upper()} - Price & Volume Analysis",
+                text=f"""
+                <b>{ticker.upper()} Stock Analysis</b><br>
+                <span style="font-size:14px">
+                Current: <b>${current_price:.2f}</b> | 
+                1D: <span style="color:{'green' if returns_1d >= 0 else 'red'}"><b>{returns_1d:+.1f}%</b></span> | 
+                1W: <span style="color:{'green' if returns_1w >= 0 else 'red'}"><b>{returns_1w:+.1f}%</b></span> | 
+                1M: <span style="color:{'green' if returns_1m >= 0 else 'red'}"><b>{returns_1m:+.1f}%</b></span> | 
+                Total: <span style="color:{'green' if returns_period >= 0 else 'red'}"><b>{returns_period:+.1f}%</b></span>
+                </span><br>
+                <span style="font-size:12px">
+                High: ${price_high:.2f} | Low: ${price_low:.2f} | 
+                Volume: {current_volume/1e6:.1f}M (Avg: {avg_volume/1e6:.1f}M)
+                </span>
+                """,
                 x=0.5,
-                font=dict(size=18)
+                font=dict(size=16)
             ),
-            margin=dict(l=60, r=60, t=80, b=60),
+            margin=dict(l=80, r=80, t=120, b=80),
             plot_bgcolor="white",
-            paper_bgcolor="white"
+            paper_bgcolor="white",
+            hovermode="x unified"
         )
         
-        # Format axes
-        fig.update_xaxes(
-            showgrid=True,
-            gridwidth=1,
-            gridcolor="lightgray",
-            row=1, col=1
-        )
-        
+        # Price chart formatting
         fig.update_yaxes(
             title_text="Price ($)",
             showgrid=True,
             gridwidth=1,
-            gridcolor="lightgray",
+            gridcolor="#E5E5E5",
             tickformat="$.2f",
+            side="right",
             row=1, col=1
         )
         
+        # Volume chart formatting  
         fig.update_xaxes(
             title_text="Date",
             showgrid=True,
             gridwidth=1,
-            gridcolor="lightgray",
+            gridcolor="#E5E5E5",
             row=2, col=1
         )
         
@@ -677,18 +639,23 @@ Ratio: {current_volume/avg_volume:.1f}x
             title_text="Volume",
             showgrid=True,
             gridwidth=1,
-            gridcolor="lightgray",
+            gridcolor="#E5E5E5",
             tickformat=".2s",
+            side="right",
             row=2, col=1
         )
         
-        # Hide stats panel axes
-        fig.update_xaxes(showticklabels=False, showgrid=False, row=1, col=2)
-        fig.update_yaxes(showticklabels=False, showgrid=False, row=1, col=2)
+        # Shared x-axis formatting
+        fig.update_xaxes(
+            showgrid=True,
+            gridwidth=1,
+            gridcolor="#E5E5E5",
+            type="date"
+        )
         
-        # Add range selector
+        # Add range selector that works for BOTH charts
         fig.update_layout(
-            xaxis=dict(
+            xaxis2=dict(
                 rangeselector=dict(
                     buttons=[
                         dict(count=7, label="7D", step="day", stepmode="backward"),
@@ -698,12 +665,18 @@ Ratio: {current_volume/avg_volume:.1f}x
                         dict(count=365, label="1Y", step="day", stepmode="backward"),
                         dict(step="all", label="ALL")
                     ],
-                    x=0,
-                    y=1.02,
-                    xanchor="left",
-                    yanchor="top"
+                    x=0.5,
+                    y=-0.15,
+                    xanchor="center",
+                    yanchor="top",
+                    bgcolor="lightgray",
+                    bordercolor="gray",
+                    borderwidth=1
                 ),
-                rangeslider=dict(visible=False),
+                rangeslider=dict(
+                    visible=True,
+                    thickness=0.05
+                ),
                 type="date"
             )
         )
@@ -1515,6 +1488,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886)
+
 
 
 
