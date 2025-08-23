@@ -31,9 +31,10 @@ def read_pk_from_gcs_cached(blob_path: str) -> pd.DataFrame:
     blob = bucket.blob(blob_path)
     content = blob.download_as_bytes()
     df = pl.read_parquet(io.BytesIO(content))
+    df = df.to_pandas()
     if "Symbol" in df.columns:
         df["Symbol"] = df["Symbol"].astype(str)
-    return df.to_pandas()
+    return df
     
 def log_progress(message: str):
     client = storage.Client()
@@ -290,6 +291,7 @@ EODHD_SECRET_NAME = "eodhd_api_key"
 
 if __name__ == "__main__":
     run_eodhd_pipeline()
+
 
 
 
