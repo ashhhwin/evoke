@@ -474,22 +474,15 @@ def plot_close_price_history(ticker: str):
         return go.Figure(layout_title_text=f"Error: {e}")
 
 commenting ends here''' 
-
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-import numpy as np
-import pandas as pd
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-
-def plotly_clean_config(hide_modebar=False):
+def plotly_clean_config():
     return {
         "responsive": True,
         "displaylogo": False,
-        "displayModeBar": not hide_modebar,
         "modeBarButtonsToRemove": [
             "zoom","select2d","lasso2d","autoScale2d",
             "toggleSpikelines","resetScale2d","hoverCompareCartesian"
@@ -505,7 +498,7 @@ def _fmt(n, money=False):
     if abs(n) >= 1_000:         return f"{n/1_000:.2f}K"
     return f"{n:,.0f}"
 
-def plot_close_price_history(ticker: str, height: int = 1050):
+def plot_close_price_history(ticker: str, height: int = 1100):
     try:
         df = load_historical_close_prices(ticker)
         if df is None or len(df) < 2:
@@ -520,138 +513,101 @@ def plot_close_price_history(ticker: str, height: int = 1050):
 
         df = df.sort_values("Trade_Date").reset_index(drop=True)
 
-        # Metrics (full period)
+        # --- Metrics ---
         current_price = float(df["P_Close"].iloc[-1])
         start_price   = float(df["P_Close"].iloc[0])
         price_high    = float(df["P_Close"].max())
         price_low     = float(df["P_Close"].min())
         returns_pct   = ((current_price / start_price) - 1.0) * 100.0
 
-        avg_vol       = float(df["Volume"].mean())
-        cur_vol       = float(df["Volume"].iloc[-1])
-        max_vol       = float(df["Volume"].max())
-        vol_1d_delta  = float(df["Volume"].pct_change(1).iloc[-1] * 100.0) if len(df) > 1 else 0.0
+        avg_vol      = float(df["Volume"].mean())
+        cur_vol      = float(df["Volume"].iloc[-1])
+        max_vol      = float(df["Volume"].max())
+        vol_1d_delta = float(df["Volume"].pct_change(1).iloc[-1] * 100.0) if len(df) > 1 else 0.0
 
         idx_high = int(df["P_Close"].idxmax())
         idx_low  = int(df["P_Close"].idxmin())
 
-        # Colors
-        up, dn, neu = "#26A69A", "#EF5350", "#78909C"
-        price_color = up if current_price >= start_price else dn
+        # --- Colors ---
+        up, dn, teal, amber, neutral = "#26A69A", "#EF5350", "#21A0AA", "#FFC445", "#9CA3AF"
+        price_color = teal
         vol_colors  = np.where(df["P_Close"].diff() >= 0, up, dn)
 
-        # Subplots with short titles and generous space
+        # --- Layout: 2-row chart area ---
         fig = make_subplots(
             rows=2, cols=1, shared_xaxes=True,
-            vertical_spacing=0.07, row_heights=[0.70, 0.30],
+            vertical_spacing=0.06, row_heights=[0.75, 0.25],
             subplot_titles=("Price", "Volume")
         )
 
-        # Price line
+        # --- Price chart ---
         fig.add_trace(
             go.Scatter(
                 x=df["Trade_Date"], y=df["P_Close"], mode="lines",
                 name="Close", line=dict(color=price_color, width=3),
-                hovertemplate="Date: %{x}<br>Price: <b>$%{y:,.2f}</b><extra></extra>",
+                hovertemplate="Date: %{x}<br>Close: <b>$%{y:,.2f}</b><extra></extra>"
             ),
             row=1, col=1
         )
 
-        # Reference lines (no text)
-        fig.add_hline(y=price_high, line=dict(dash="dot", color=neu, width=1.2), row=1)
-        fig.add_hline(y=price_low,  line=dict(dash="dot", color=neu, width=1.2), row=1)
+        # High/Low markers
+        fig.add_trace(go.Scatter(
+            x=[df["Trade_Date"].iloc[idx_high]], y=[price_high],
+            mode="markers", marker=dict(size=9, color=neutral, symbol="triangle-up"),
+            hovertemplate="High: %{x}<br>$%{y:,.2f}<extra></extra>", showlegend=False
+        ), row=1, col=1)
+        fig.add_trace(go.Scatter(
+            x=[df["Trade_Date"].iloc[idx_low]], y=[price_low],
+            mode="markers", marker=dict(size=9, color=neutral, symbol="triangle-down"),
+            hovertemplate="Low: %{x}<br>$%{y:,.2f}<extra></extra>", showlegend=False
+        ), row=1, col=1)
 
-        # High/Low markers (hover only)
-        fig.add_trace(
-            go.Scatter(
-                x=[df["Trade_Date"].iloc[idx_high]], y=[price_high],
-                mode="markers", marker=dict(size=9, color=neu, symbol="triangle-up"),
-                hovertemplate="Period High<br>Date: %{x}<br>Price: <b>$%{y:,.2f}</b><extra></extra>",
-                showlegend=False,
-            ), row=1, col=1
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=[df["Trade_Date"].iloc[idx_low]], y=[price_low],
-                mode="markers", marker=dict(size=9, color=neu, symbol="triangle-down"),
-                hovertemplate="Period Low<br>Date: %{x}<br>Price: <b>$%{y:,.2f}</b><extra></extra>",
-                showlegend=False,
-            ), row=1, col=1
-        )
-
-        # Volume bars + MA
+        # --- Volume chart ---
         fig.add_trace(
             go.Bar(
                 x=df["Trade_Date"], y=df["Volume"], name="Volume",
                 marker_color=vol_colors, opacity=0.85,
-                hovertemplate="Date: %{x}<br>Volume: <b>%{y:,.0f}</b><extra></extra>",
-            ), row=2, col=1
+                hovertemplate="Date: %{x}<br>Volume: <b>%{y:,.0f}</b><extra></extra>"
+            ),
+            row=2, col=1
         )
         if len(df) >= 20:
             vol_ma_20 = df["Volume"].rolling(20).mean()
-            fig.add_trace(
-                go.Scatter(
-                    x=df["Trade_Date"], y=vol_ma_20, name="Vol 20D MA",
-                    mode="lines", line=dict(width=2, color="#FFCA28"),
-                    hovertemplate="20D MA: <b>%{y:,.0f}</b><extra></extra>",
-                ), row=2, col=1
-            )
-        fig.add_hline(y=avg_vol, line=dict(dash="dot", color="#B0BEC5", width=1.4), row=2)
+            fig.add_trace(go.Scatter(
+                x=df["Trade_Date"], y=vol_ma_20, name="20D MA",
+                mode="lines", line=dict(width=2.2, color=amber),
+                hovertemplate="20D MA: <b>%{y:,.0f}</b><extra></extra>"
+            ), row=2, col=1)
 
-        # Layout: bigger, cleaner, legend above plot (not overlapping header)
+        # --- Styling ---
         fig.update_layout(
             autosize=True,
             height=height,
             plot_bgcolor="#FFFFFF",
             paper_bgcolor="#FAFAFA",
-            margin=dict(l=90, r=50, t=160, b=90),  # extra top for header & legend
-            font=dict(family="Arial, sans-serif", size=14, color="#212121"),
+            margin=dict(l=80, r=320, t=60, b=80),  # reserve right space for stats rail
+            font=dict(family="Arial, sans-serif", size=14, color="#1F2937"),
             hovermode="x unified",
             hoverlabel=dict(bgcolor="white", font_size=13),
-            showlegend=True,
-            legend=dict(
-                orientation="h",
-                x=0.01, y=1.125, xanchor="left", yanchor="bottom",  # sits between header and plot
-                bgcolor="rgba(255,255,255,0.7)",
-                bordercolor="rgba(0,0,0,0)", borderwidth=0,
-                font=dict(size=12),
-                itemsizing="constant"
-            ),
+            showlegend=False,
             xaxis_rangeslider_visible=False
         )
 
-        # Short, left-aligned subplot titles
+        # Axis styling
+        fig.update_yaxes(title_text="Price (USD)", tickprefix="$", tickformat=",.2f",
+                         showgrid=True, gridcolor="#E7ECEF", row=1, col=1)
+        fig.update_yaxes(title_text="Volume", tickformat=".2s",
+                         showgrid=False, row=2, col=1)
+        fig.update_xaxes(showgrid=True, gridcolor="#E7ECEF", row=1, col=1)
+        fig.update_xaxes(title_text="Date", showgrid=True, gridcolor="#E7ECEF", row=2, col=1)
+
+        # Subplot titles: left aligned
         for ann in fig.layout.annotations:
             ann.font.size = 15
             ann.x = 0.01
             ann.xanchor = "left"
 
-        # Axes
-        fig.update_xaxes(
-            showgrid=True, gridwidth=1, gridcolor="#E0E0E0",
-            showline=True, linewidth=1, linecolor="#BDBDBD",
-            row=1, col=1
-        )
-        fig.update_xaxes(
-            title_text="Date",
-            showgrid=True, gridwidth=1, gridcolor="#E0E0E0",
-            showline=True, linewidth=1, linecolor="#BDBDBD",
-            row=2, col=1
-        )
-        fig.update_yaxes(
-            title_text="Price (USD)",
-            showgrid=True, gridwidth=1, gridcolor="#EEEEEE",
-            showline=True, linewidth=1, linecolor="#BDBDBD",
-            tickprefix="$", tickformat=",.2f",
-            row=1, col=1
-        )
-        fig.update_yaxes(
-            title_text="Volume",
-            showgrid=False, tickformat=".2s",
-            row=2, col=1
-        )
-
-        # Range selector: pushed further down to avoid crowding
+        # --- Range selector (compact pills) ---
         fig.update_layout(
             xaxis=dict(
                 rangeselector=dict(
@@ -663,67 +619,59 @@ def plot_close_price_history(ticker: str, height: int = 1050):
                         dict(count=1, label="1Y", step="year", stepmode="backward"),
                         dict(step="all", label="All"),
                     ],
-                    x=0.50, y=-0.22, xanchor="center", yanchor="top",
+                    x=0.01, y=-0.25, xanchor="left", yanchor="top",
                     bgcolor="rgba(0,0,0,0)",
-                    activecolor="#ECEFF1",
-                    font=dict(size=12),
+                    activecolor="#E5E7EB",
+                    font=dict(size=12)
                 )
             )
         )
 
-        # Header band (compact)
+        # --- Header bar ---
         start_d = pd.to_datetime(df["Trade_Date"].iloc[0]).date()
         end_d   = pd.to_datetime(df["Trade_Date"].iloc[-1]).date()
-
-        # Background band behind header
-        fig.add_shape(
-            type="rect", xref="paper", yref="paper",
-            x0=0, x1=1, y0=1.13, y1=1.20,
-            line=dict(width=0), fillcolor="#ECEFF1", layer="below"
-        )
-
-        # Header text (no big title)
+        fig.add_shape(type="rect", xref="paper", yref="paper",
+                      x0=0, x1=1, y0=1.0, y1=1.05,
+                      line=dict(width=0), fillcolor="#F5F7F9", layer="below")
         fig.add_annotation(
-            xref="paper", yref="paper", x=0.01, y=1.185,
-            text=f"<b>{ticker.upper()} — Price & Volume</b> "
-                 f"<span style='font-size:12px;color:#607D8B'>(Period: {start_d} to {end_d})</span>",
+            xref="paper", yref="paper", x=0.01, y=1.025,
+            text=f"<b>{ticker.upper()} • Close Price & Volume</b> "
+                 f"<span style='font-size:12px;color:#6B7280'>({start_d} → {end_d})</span>",
             showarrow=False, xanchor="left", yanchor="middle",
-            font=dict(size=18, color="#263238")
+            font=dict(size=16, color="#111827")
         )
 
-        # Two rows of metrics, evenly spaced
-        row1 = [("Current", _fmt(current_price, True)),
-                ("Period High", _fmt(price_high, True)),
-                ("Period Low",  _fmt(price_low, True)),
-                ("Total Return", f"{returns_pct:+.2f}%")]
-        row2 = [("Volume", _fmt(cur_vol)),
-                ("Avg Volume", _fmt(avg_vol)),
-                ("Max Volume", _fmt(max_vol)),
-                ("1D Vol Δ", f"{vol_1d_delta:+.2f}%")]
+        # --- Stats rail (right side) ---
+        def stat_text(label, value, y, color="#111827"):
+            fig.add_annotation(
+                xref="paper", yref="paper", x=1.02, y=y,
+                text=f"<b>{label}</b><br>{value}",
+                showarrow=False, xanchor="left", yanchor="middle",
+                font=dict(size=13, color=color), align="left"
+            )
 
-        def _metric_row(items, y):
-            xs = np.linspace(0.08, 0.92, len(items))
-            for (label, val), x in zip(items, xs):
-                fig.add_annotation(xref="paper", yref="paper", x=x, y=y+0.013,
-                    text=f"<b>{label}</b>", showarrow=False,
-                    font=dict(size=12, color="#455A64"),
-                    xanchor="center", yanchor="bottom")
-                fig.add_annotation(xref="paper", yref="paper", x=x, y=y-0.010,
-                    text=f"{val}", showarrow=False,
-                    font=dict(size=16, color="#263238"),
-                    xanchor="center", yanchor="top")
+        # Price stats
+        stat_text("Current", _fmt(current_price, True), 0.92)
+        stat_text("Return", f"{returns_pct:+.2f}%", 0.87,
+                  color=(up if returns_pct>=0 else dn))
+        stat_text("Period High", _fmt(price_high, True), 0.82)
+        stat_text("Period Low", _fmt(price_low, True), 0.77)
 
-        _metric_row(row1, y=1.172)
-        _metric_row(row2, y=1.145)
+        # Volume stats
+        stat_text("Volume", _fmt(cur_vol), 0.68)
+        stat_text("Avg Vol", _fmt(avg_vol), 0.63)
+        stat_text("Max Vol", _fmt(max_vol), 0.58)
+        stat_text("1D Vol Δ", f"{vol_1d_delta:+.2f}%", 0.53,
+                  color=(up if vol_1d_delta>=0 else dn))
 
         return fig
 
     except Exception as e:
         fig = go.Figure()
         fig.add_annotation(
-            text=f"An error occurred: {str(e)}",
+            text=f"Error: {str(e)}",
             x=0.5, y=0.5, xref="paper", yref="paper",
-            showarrow=False, font=dict(size=18, color="#D32F2F")
+            showarrow=False, font=dict(size=18, color="#DC2626")
         )
         fig.update_layout(autosize=True, height=max(700, height), paper_bgcolor="#FAFAFA")
         return fig
@@ -1524,6 +1472,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886)
+
 
 
 
