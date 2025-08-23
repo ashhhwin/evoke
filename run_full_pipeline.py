@@ -18,10 +18,23 @@ import io
 import os
 import gcsfs 
 import re
+
+import functools
 GCS_BUCKET = "historical_data_evoke" 
 
 PROGRESS_LOG = Path("market_data/progress.log")
 
+@functools.lru_cache(maxsize=10)  # Keeps 10 files in memory
+def read_pk_from_gcs_cached(blob_path: str) -> pd.DataFrame:
+    client = storage.Client()
+    bucket = client.bucket(GCS_BUCKET)
+    blob = bucket.blob(blob_path)
+    content = blob.download_as_bytes()
+    df = pl.read_parquet(io.BytesIO(content))
+    if "Symbol" in df.columns:
+        df["Symbol"] = df["Symbol"].astype(str)
+    return df.to_pandas()
+    
 def log_progress(message: str):
     client = storage.Client()
     bucket = client.bucket(GCS_BUCKET)
@@ -277,6 +290,7 @@ EODHD_SECRET_NAME = "eodhd_api_key"
 
 if __name__ == "__main__":
     run_eodhd_pipeline()
+
 
 
 
