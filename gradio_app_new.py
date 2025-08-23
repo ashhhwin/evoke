@@ -661,7 +661,7 @@ def plot_close_price_history(ticker: str):
                 gridcolor="rgba(128,128,128,0.2)",
                 type="date",
                 tickfont=dict(size=11, family="Arial", color="#34495e"),
-                titlefont=dict(size=12, family="Arial", color="#2c3e50"),
+                title_font=dict(size=12, family="Arial", color="#2c3e50"),
                 showline=True,
                 linewidth=1,
                 linecolor="rgba(128,128,128,0.3)"
@@ -676,7 +676,7 @@ def plot_close_price_history(ticker: str):
                 gridcolor="rgba(128,128,128,0.2)",
                 tickformat="$.2f",
                 tickfont=dict(size=11, family="Arial", color="#34495e"),
-                titlefont=dict(size=12, family="Arial", color="#2c3e50"),
+                title_font=dict(size=12, family="Arial", color="#2c3e50"),
                 showline=True,
                 linewidth=1,
                 linecolor="rgba(128,128,128,0.3)",
@@ -690,7 +690,7 @@ def plot_close_price_history(ticker: str):
                 gridcolor="rgba(128,128,128,0.2)",
                 tickformat=".2s",
                 tickfont=dict(size=11, family="Arial", color="#34495e"),
-                titlefont=dict(size=12, family="Arial", color="#2c3e50"),
+                title_font=dict(size=12, family="Arial", color="#2c3e50"),
                 showline=True,
                 linewidth=1,
                 linecolor="rgba(128,128,128,0.3)"
@@ -1535,6 +1535,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886)
+
 
 
 
