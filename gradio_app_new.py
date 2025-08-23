@@ -574,7 +574,7 @@ def _get_earnings(path: str, ticker: str):
     return out
 
 def _closest_price(df, date_obj):
-    ts = pd.to_datetime(date_obj)
+    ts = pd.to_datetime(date_obj)  # Timestamp
     idx = (df["Trade_Date"] - ts).abs().argmin()
     return df["Trade_Date"].iloc[idx], float(df["P_Close"].iloc[idx])
 
@@ -599,10 +599,10 @@ def plot_close_price_history(
       - 52W High/Low prominent
       - Earnings dashed vlines
       - Catalyst dots on the price line
-      - No epoch/1970 issues (dates are validated and x-axis clamped)
+      - Dates validated and x-axis clamped (no 1970)
     """
     try:
-        # ---- Data ----
+        # ---- Load & prep ----
         df = load_historical_close_prices(ticker)
         if df is None or len(df) < 2:
             fig = go.Figure()
@@ -616,8 +616,15 @@ def plot_close_price_history(
 
         df = df.sort_values("Trade_Date").reset_index(drop=True)
         df["Trade_Date"] = pd.to_datetime(df["Trade_Date"])
-        x_min = df["Trade_Date"].min()
-        x_max = df["Trade_Date"].max()
+
+        # Window bounds
+        x_min = pd.to_datetime(df["Trade_Date"].min())
+        x_max = pd.to_datetime(df["Trade_Date"].max())
+        win_lower = (x_min - pd.Timedelta(days=3)).date()
+        win_upper = (x_max + pd.Timedelta(days=3)).date()
+
+        def _in_window(d):  # d is datetime.date
+            return (d is not None) and (win_lower <= d <= win_upper)
 
         # ---- Metrics (window) ----
         curr = float(df["P_Close"].iloc[-1])
@@ -640,15 +647,9 @@ def plot_close_price_history(
         r1w = _ret_over_n(df, 5)
         r1m = _ret_over_n(df, 21)
 
-        # ---- Events (validated & in-window only) ----
-        catalysts_all = _get_catalysts(catalyst_path, ticker)
-        earnings_all  = _get_earnings(earnings_path, ticker)
-
-        def _in_window(d):
-            return (d is not None) and (x_min.date() - pd.Timedelta(days=3)).date() <= d <= (x_max.date() + pd.Timedelta(days=3)).date()
-
-        catalysts = [ev for ev in catalysts_all if _in_window(ev["date"])]
-        earnings  = [ev for ev in earnings_all if _in_window(ev["date"])]
+        # ---- Events (validated & in-window) ----
+        catalysts = [ev for ev in _get_catalysts(catalyst_path, ticker) if _in_window(ev["date"])]
+        earnings  = [ev for ev in _get_earnings(earnings_path, ticker)  if _in_window(ev["date"])]
 
         # ---- Figure ----
         fig = make_subplots(
@@ -695,7 +696,7 @@ def plot_close_price_history(
                 showlegend=False
             ), row=1, col=1)
 
-        # Earnings dashed vlines + small tag
+        # Earnings dashed vlines + compact tag
         for ev in earnings:
             ex, _ = _closest_price(df, ev["date"])
             fig.add_vline(x=ex, line_width=1.5, line_dash="dash", line_color=EARN_LINE, row=1, col=1)
@@ -724,16 +725,13 @@ def plot_close_price_history(
                 hovertemplate="20D MA: <b>%{y:,.0f}</b><extra></extra>"
             ), row=2, col=1)
 
-        # ---- Layout (tight, no wasted white space) ----
-        start_d = x_min.date()
-        end_d   = x_max.date()
-
+        # ---- Layout (tight; ribbon above) ----
         fig.update_layout(
             autosize=True,
             height=height,
             plot_bgcolor="#FFFFFF",
             paper_bgcolor="#FAFAFA",
-            margin=dict(l=74, r=24, t=96, b=66),   # slim, but leaves space for ribbon
+            margin=dict(l=74, r=24, t=96, b=66),
             font=dict(family="Arial, sans-serif", size=14, color=TEXT),
             hovermode="x unified",
             hoverlabel=dict(bgcolor="white", font_size=13),
@@ -759,10 +757,14 @@ def plot_close_price_history(
             ann.x = 0.01
             ann.xanchor = "left"
 
-        # ---- Slim header + ribbon (no HTML <div>, proper spacing) ----
+        # ---- Slim header + ribbon ----
+        start_d = x_min.date()
+        end_d   = x_max.date()
+
         fig.add_shape(type="rect", xref="paper", yref="paper",
                       x0=0, x1=1, y0=1.00, y1=1.06,
                       line=dict(width=0), fillcolor=HEADER_BG, layer="below")
+
         fig.add_annotation(
             xref="paper", yref="paper", x=0.012, y=1.045,
             text=f"<b>{ticker.upper()} • Close Price & Volume</b> "
@@ -771,7 +773,6 @@ def plot_close_price_history(
             font=dict(size=16, color=TEXT)
         )
 
-        # Three ribbon blocks with clean line breaks
         def ribbon_block(x, title, line1, line2, align="left"):
             fig.add_annotation(
                 xref="paper", yref="paper", x=x, y=1.028,
@@ -806,7 +807,7 @@ def plot_close_price_history(
         ribbon_block(0.50, "RETURNS",    returns_l1, returns_l2, "center")
         ribbon_block(0.83, "VOLUME",     volume_l1,  volume_l2,  "right")
 
-        # ---- Compact range selector near charts ----
+        # ---- Compact range selector ----
         fig.update_layout(
             xaxis=dict(
                 rangeselector=dict(
@@ -1633,6 +1634,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886)
+
 
 
 
