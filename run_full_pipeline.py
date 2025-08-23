@@ -1,3 +1,4 @@
+import polars as pl
 from pathlib import Path
 from datetime import date, datetime
 import pandas as pd
@@ -276,6 +277,7 @@ EODHD_SECRET_NAME = "eodhd_api_key"
 
 if __name__ == "__main__":
     run_eodhd_pipeline()
+
 
 
 
