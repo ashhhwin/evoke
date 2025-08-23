@@ -227,7 +227,7 @@ def load_historical_close_prices(ticker: str, bucket_name="historical_data_evoke
         raise FileNotFoundError(f"No parquet files found in gs://{bucket_name}/{folder}")
 
     full_df = pd.concat(
-        [read_pk_from_gcs(f) for f in parquet_files],
+        [read_pk_from_gcs_cached(f) for f in parquet_files],
         ignore_index=True
     )
 
@@ -290,6 +290,7 @@ EODHD_SECRET_NAME = "eodhd_api_key"
 
 if __name__ == "__main__":
     run_eodhd_pipeline()
+
 
 
 
