@@ -480,216 +480,202 @@ def plot_close_price_history(ticker: str):
         df = load_historical_close_prices(ticker)
         df = df.sort_values("Trade_Date")
 
-        # Calculate comprehensive analytics
+        # Calculate only real, verifiable metrics
         current_price = df["P_Close"].iloc[-1]
         start_price = df["P_Close"].iloc[0]
         
-        # Calculate returns over different periods
+        # Actual returns over periods (only if enough data exists)
         returns_1d = ((df["P_Close"].iloc[-1] / df["P_Close"].iloc[-2]) - 1) * 100 if len(df) > 1 else 0
         returns_1w = ((df["P_Close"].iloc[-1] / df["P_Close"].iloc[-5]) - 1) * 100 if len(df) > 5 else 0
         returns_1m = ((df["P_Close"].iloc[-1] / df["P_Close"].iloc[-22]) - 1) * 100 if len(df) > 22 else 0
-        returns_ytd = ((current_price / start_price) - 1) * 100
+        returns_period = ((current_price / start_price) - 1) * 100
         
         # Price statistics
-        price_52w_high = df["P_Close"].max()
-        price_52w_low = df["P_Close"].min()
-        avg_volume_10d = df["Volume"].tail(10).mean()
-        avg_volume_30d = df["Volume"].tail(30).mean()
-        
-        # Volatility (20-day rolling std)
-        df['volatility'] = df["P_Close"].rolling(20).std()
-        current_volatility = df['volatility'].iloc[-1]
-        
-        # Volume analysis
-        volume_colors = []
+        price_high = df["P_Close"].max()
+        price_low = df["P_Close"].min()
         avg_volume = df["Volume"].mean()
+        current_volume = df["Volume"].iloc[-1]
+        
+        # Volume analysis colors
+        volume_colors = []
         for i, vol in enumerate(df["Volume"]):
-            if vol > avg_volume * 2:  # High volume
-                volume_colors.append("#FF6B35" if df["Close_Close"].iloc[i] >= 0 else "#C44536")
-            elif vol > avg_volume * 1.5:  # Above average
-                volume_colors.append("#FFA726" if df["Close_Close"].iloc[i] >= 0 else "#FF7043")
-            else:  # Normal volume
-                volume_colors.append("#4CAF50" if df["Close_Close"].iloc[i] >= 0 else "#F44336")
+            if vol > avg_volume * 2:
+                volume_colors.append("#D32F2F" if df["Close_Close"].iloc[i] < 0 else "#388E3C")
+            elif vol > avg_volume * 1.5:
+                volume_colors.append("#F57C00" if df["Close_Close"].iloc[i] < 0 else "#689F38")
+            else:
+                volume_colors.append("#E53935" if df["Close_Close"].iloc[i] < 0 else "#43A047")
 
-        # Dynamic price line color
-        price_line_color = "#00C853" if current_price >= start_price else "#FF1744"
+        # Price line color
+        price_line_color = "#1B5E20" if current_price >= start_price else "#B71C1C"
 
-        # Create better scaled subplot layout
+        # Create professional layout
         fig = make_subplots(
             rows=3, cols=2,
             shared_xaxes=True,
-            column_widths=[0.68, 0.32],
-            row_heights=[0.60, 0.05, 0.35],
-            vertical_spacing=0.06,
-            horizontal_spacing=0.03,
+            column_widths=[0.70, 0.30],
+            row_heights=[0.65, 0.05, 0.30],
+            vertical_spacing=0.02,
+            horizontal_spacing=0.01,
             specs=[
-                [{"rowspan": 1, "colspan": 1}, {"rowspan": 3, "colspan": 1}],  # Main chart + Stats panel (full height)
-                [{"rowspan": 1, "colspan": 1}, None],  # Range selector row
-                [{"rowspan": 1, "colspan": 1}, None]   # Volume chart
-            ],
-            subplot_titles=[
-                f"{ticker.upper()} • ${current_price:.2f} • {returns_1d:+.2f}% Today",
-                "Analytics Dashboard",
-                "",  # Range selector
-                "Volume Analysis"
+                [{"rowspan": 1}, {"rowspan": 3}],  # Price chart + Full height stats
+                [{"rowspan": 1}, None],            # Range selector
+                [{"rowspan": 1}, None]             # Volume chart
             ]
         )
 
-        # MAIN PRICE CHART (Row 1, Col 1)
+        # PRICE CHART
         fig.add_trace(go.Scatter(
             x=df["Trade_Date"],
             y=df["P_Close"],
             mode="lines",
-            name="Close Price",
-            line=dict(color=price_line_color, width=3),
-            hovertemplate="<b>%{x|%b %d, %Y}</b><br>" +
-                         "Close: <b>$%{y:.2f}</b><br>" +
-                         "<extra></extra>",
+            line=dict(color=price_line_color, width=2.5),
+            hovertemplate="<b>%{x|%Y-%m-%d}</b><br>Price: $%{y:.2f}<extra></extra>",
             showlegend=False
         ), row=1, col=1)
 
-        # Add support/resistance levels
+        # Support/Resistance levels
         fig.add_hline(
-            y=price_52w_high, 
-            line_dash="dash", 
-            line_color="#FF5722",
-            opacity=0.6,
-            row=1, col=1,
-            annotation_text=f"52W High: ${price_52w_high:.2f}",
-            annotation_position="top left",
-            annotation_font_size=10
+            y=price_high,
+            line_dash="dot",
+            line_color="#D32F2F",
+            opacity=0.7,
+            row=1, col=1
         )
         
         fig.add_hline(
-            y=price_52w_low, 
-            line_dash="dash", 
-            line_color="#2196F3",
-            opacity=0.6,
-            row=1, col=1,
-            annotation_text=f"52W Low: ${price_52w_low:.2f}",
-            annotation_position="bottom left",
-            annotation_font_size=10
+            y=price_low,
+            line_dash="dot", 
+            line_color="#1976D2",
+            opacity=0.7,
+            row=1, col=1
         )
 
-        # Range selector dummy trace (Row 2)
+        # Range selector (Row 2)
         fig.add_trace(go.Scatter(
             x=df["Trade_Date"],
             y=[None]*len(df),
-            mode="lines",
             showlegend=False,
             hoverinfo='skip'
         ), row=2, col=1)
 
-        # VOLUME CHART (Row 3, Col 1)
+        # VOLUME CHART
         fig.add_trace(go.Bar(
             x=df["Trade_Date"],
             y=df["Volume"],
-            name="Volume",
             marker_color=volume_colors,
             opacity=0.8,
-            hovertemplate="<b>%{x|%b %d, %Y}</b><br>" +
-                         "Volume: <b>%{y:,.0f}</b><br>" +
-                         "vs 30D Avg: <b>%{customdata:.1f}x</b><br>" +
-                         "<extra></extra>",
-            customdata=df["Volume"] / avg_volume_30d,
+            hovertemplate="<b>%{x|%Y-%m-%d}</b><br>Volume: %{y:,.0f}<br>vs Avg: %{customdata:.1f}x<extra></extra>",
+            customdata=df["Volume"] / avg_volume,
             showlegend=False
         ), row=3, col=1)
 
-        # Volume moving averages with better visibility
+        # Volume moving averages (if available)
         if "V_14D_MA" in df.columns:
             fig.add_trace(go.Scatter(
                 x=df["Trade_Date"],
                 y=df["V_14D_MA"],
-                name="14D MA",
                 mode="lines",
-                line=dict(color="#FF9800", width=3, dash="dash"),
-                showlegend=False,
-                hovertemplate="<b>14D MA:</b> %{y:,.0f}<extra></extra>"
+                line=dict(color="#FF8F00", width=2.5),
+                hovertemplate="14D MA: %{y:,.0f}<extra></extra>",
+                showlegend=False
             ), row=3, col=1)
 
         if "V_50D_MA" in df.columns:
             fig.add_trace(go.Scatter(
                 x=df["Trade_Date"],
                 y=df["V_50D_MA"],
-                name="50D MA",
-                mode="lines",
-                line=dict(color="#03A9F4", width=3, dash="dot"),
-                showlegend=False,
-                hovertemplate="<b>50D MA:</b> %{y:,.0f}<extra></extra>"
+                mode="lines", 
+                line=dict(color="#0277BD", width=2.5),
+                hovertemplate="50D MA: %{y:,.0f}<extra></extra>",
+                showlegend=False
             ), row=3, col=1)
 
-        # STATISTICS PANEL (Row 1-3, Col 2) - Full height
-        stats_text = f"""
-        <b style="font-size:14px">📈 PERFORMANCE</b><br><br>
-        <span style="font-size:13px">1 Day: </span><span style="color:{'#00C853' if returns_1d >= 0 else '#FF1744'}; font-size:14px; font-weight:bold">{returns_1d:+.2f}%</span><br>
-        <span style="font-size:13px">1 Week: </span><span style="color:{'#00C853' if returns_1w >= 0 else '#FF1744'}; font-size:14px; font-weight:bold">{returns_1w:+.2f}%</span><br>
-        <span style="font-size:13px">1 Month: </span><span style="color:{'#00C853' if returns_1m >= 0 else '#FF1744'}; font-size:14px; font-weight:bold">{returns_1m:+.2f}%</span><br>
-        <span style="font-size:13px">YTD: </span><span style="color:{'#00C853' if returns_ytd >= 0 else '#FF1744'}; font-size:14px; font-weight:bold">{returns_ytd:+.2f}%</span><br><br>
-        
-        <b style="font-size:14px">💰 PRICE LEVELS</b><br><br>
-        <span style="font-size:13px">Current: </span><span style="font-size:15px; font-weight:bold">${current_price:.2f}</span><br>
-        <span style="font-size:13px">52W High: </span><span style="font-size:13px; color:#FF5722">${price_52w_high:.2f}</span><br>
-        <span style="font-size:13px">52W Low: </span><span style="font-size:13px; color:#2196F3">${price_52w_low:.2f}</span><br>
-        <span style="font-size:13px">Range: </span><span style="font-size:13px">{((current_price - price_52w_low)/(price_52w_high - price_52w_low)*100):.1f}%</span><br><br>
-        
-        <b style="font-size:14px">📊 VOLUME</b><br><br>
-        <span style="font-size:13px">Today: </span><span style="font-size:14px; font-weight:bold">{df["Volume"].iloc[-1]/1e6:.1f}M</span><br>
-        <span style="font-size:13px">10D Avg: </span><span style="font-size:13px">{avg_volume_10d/1e6:.1f}M</span><br>
-        <span style="font-size:13px">30D Avg: </span><span style="font-size:13px">{avg_volume_30d/1e6:.1f}M</span><br>
-        <span style="font-size:13px">vs Avg: </span><span style="font-size:14px; font-weight:bold; color:{'#FF6B35' if df['Volume'].iloc[-1] > avg_volume_30d * 1.5 else '#4CAF50'}">{df['Volume'].iloc[-1]/avg_volume_30d:.1f}x</span><br><br>
-        
-        <b style="font-size:14px">⚡ ANALYSIS</b><br><br>
-        <span style="font-size:13px">Trend: </span><span style="font-size:14px; font-weight:bold; color:{'#00C853' if returns_1m > 0 else '#FF1744'}">{'📈 Bullish' if returns_1m > 0 else '📉 Bearish'}</span><br>
-        <span style="font-size:13px">Volume: </span><span style="font-size:14px; font-weight:bold; color:{'#FF6B35' if df['Volume'].iloc[-1] > avg_volume_30d * 1.5 else '#4CAF50'}">{'🔥 High' if df["Volume"].iloc[-1] > avg_volume_30d * 1.5 else '✅ Normal'}</span><br>
-        <span style="font-size:13px">Volatility: </span><span style="font-size:13px">{current_volatility:.2f}</span>
+        # STATISTICS PANEL
+        stats_html = f"""
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; line-height: 1.6;">
+            <div style="background: #f8f9fa; padding: 15px; margin-bottom: 20px; border-left: 4px solid #2196F3;">
+                <div style="font-weight: bold; font-size: 14px; margin-bottom: 10px;">PRICE DATA</div>
+                <div>Current: <span style="font-weight: bold; font-size: 16px;">${current_price:.2f}</span></div>
+                <div>High: <span style="color: #D32F2F;">${price_high:.2f}</span></div>
+                <div>Low: <span style="color: #1976D2;">${price_low:.2f}</span></div>
+                <div>Range: {((current_price - price_low)/(price_high - price_low)*100):.1f}%</div>
+            </div>
+            
+            <div style="background: #f8f9fa; padding: 15px; margin-bottom: 20px; border-left: 4px solid #4CAF50;">
+                <div style="font-weight: bold; font-size: 14px; margin-bottom: 10px;">RETURNS</div>
+                <div>1 Day: <span style="color: {'#1B5E20' if returns_1d >= 0 else '#B71C1C'}; font-weight: bold;">{returns_1d:+.2f}%</span></div>
+                <div>1 Week: <span style="color: {'#1B5E20' if returns_1w >= 0 else '#B71C1C'}; font-weight: bold;">{returns_1w:+.2f}%</span></div>
+                <div>1 Month: <span style="color: {'#1B5E20' if returns_1m >= 0 else '#B71C1C'}; font-weight: bold;">{returns_1m:+.2f}%</span></div>
+                <div>Period: <span style="color: {'#1B5E20' if returns_period >= 0 else '#B71C1C'}; font-weight: bold;">{returns_period:+.2f}%</span></div>
+            </div>
+            
+            <div style="background: #f8f9fa; padding: 15px; border-left: 4px solid #FF9800;">
+                <div style="font-weight: bold; font-size: 14px; margin-bottom: 10px;">VOLUME</div>
+                <div>Current: <span style="font-weight: bold;">{current_volume/1e6:.1f}M</span></div>
+                <div>Average: {avg_volume/1e6:.1f}M</div>
+                <div>Ratio: {current_volume/avg_volume:.1f}x</div>
+                <div style="margin-top: 10px; font-size: 10px; color: #666;">
+                    <span style="color: #43A047;">■</span> Normal Vol Up
+                    <span style="color: #E53935;">■</span> Normal Vol Down<br>
+                    <span style="color: #689F38;">■</span> High Vol Up  
+                    <span style="color: #F57C00;">■</span> High Vol Down<br>
+                    <span style="color: #388E3C;">■</span> Very High Up
+                    <span style="color: #D32F2F;">■</span> Very High Down
+                </div>
+            </div>
+        </div>
         """
-        
+
         fig.add_annotation(
-            text=stats_text,
+            text=stats_html,
             xref="x2", yref="y2",
             x=0.5, y=0.5,
             showarrow=False,
-            font=dict(size=12, family="Arial", color="#1A1A1A"),
-            bgcolor="rgba(248, 249, 250, 0.98)",
-            bordercolor="#34495E",
-            borderwidth=2,
             align="left",
             xanchor="center",
-            yanchor="middle"
+            yanchor="middle",
+            bgcolor="rgba(255, 255, 255, 0.95)",
+            bordercolor="#E0E0E0",
+            borderwidth=1
         )
 
-        # Enhanced Layout
+        # LAYOUT CONFIGURATION
         fig.update_layout(
-            height=850,
+            height=800,
+            margin=dict(l=10, r=10, t=10, b=50),
+            plot_bgcolor="#FFFFFF",
+            paper_bgcolor="#FFFFFF",
             
-            # Main title
-            title=dict(
-                text=f"<b>{ticker.upper()}</b> │ Financial Analysis Dashboard │ {df['Trade_Date'].iloc[-1].strftime('%B %d, %Y')}",
-                x=0.5,
-                y=0.98,
-                font=dict(size=18, family="Arial Black", color="#1A1A1A"),
-                xanchor="center"
-            ),
-            
-            # X-axes configuration
-            xaxis=dict(  # Main price chart
+            # Price chart axes
+            xaxis=dict(
                 showgrid=True,
                 gridwidth=1,
-                gridcolor="rgba(189, 195, 199, 0.3)",
+                gridcolor="#E0E0E0",
                 showline=True,
-                linewidth=2,
-                linecolor="#BDC3C7",
-                tickfont=dict(size=10, color="#2C3E50"),
+                linewidth=1,
+                linecolor="#BDBDBD",
+                tickfont=dict(size=11),
                 type="date"
             ),
             
-            xaxis2=dict(  # Stats panel (hidden)
-                showgrid=False,
-                showticklabels=False,
-                range=[0, 1]
+            yaxis=dict(
+                title="Price (USD)",
+                title_font=dict(size=12, color="#424242"),
+                side="right",
+                showgrid=True,
+                gridwidth=1,
+                gridcolor="#E0E0E0",
+                tickformat="$.2f",
+                tickfont=dict(size=11)
             ),
             
-            xaxis3=dict(  # Range selector
+            # Stats panel axes (hidden)
+            xaxis2=dict(showgrid=False, showticklabels=False, range=[0, 1]),
+            yaxis2=dict(showgrid=False, showticklabels=False, range=[0, 1]),
+            
+            # Range selector
+            xaxis3=dict(
                 showticklabels=False,
                 showgrid=False,
                 rangeselector=dict(
@@ -699,88 +685,46 @@ def plot_close_price_history(ticker: str):
                         dict(count=90, label="3M", step="day", stepmode="backward"),
                         dict(count=180, label="6M", step="day", stepmode="backward"),
                         dict(count=365, label="1Y", step="day", stepmode="backward"),
-                        dict(step="all", label="MAX")
+                        dict(step="all", label="ALL")
                     ],
-                    x=0.01,
+                    x=0.5,
                     y=0.5,
-                    xanchor="left",
+                    xanchor="center",
                     yanchor="middle",
-                    bgcolor="#ECF0F1",
-                    bordercolor="#BDC3C7",
+                    bgcolor="#F5F5F5",
+                    bordercolor="#BDBDBD",
                     borderwidth=1,
-                    font=dict(size=10, color="#2C3E50")
+                    font=dict(size=11)
                 ),
                 type="date"
             ),
             
-            xaxis4=dict(  # Volume chart
+            # Volume chart axes
+            xaxis4=dict(
+                title="Date",
+                title_font=dict(size=12, color="#424242"),
                 showgrid=True,
                 gridwidth=1,
-                gridcolor="rgba(189, 195, 199, 0.3)",
+                gridcolor="#E0E0E0",
                 showline=True,
                 linewidth=1,
-                linecolor="#BDC3C7",
-                tickfont=dict(size=10, color="#2C3E50"),
+                linecolor="#BDBDBD",
+                tickfont=dict(size=11),
                 type="date"
             ),
             
-            # Y-axes configuration
-            yaxis=dict(  # Price axis
-                title="<b>Price (USD)</b>",
-                side="right",
+            yaxis4=dict(
+                title="Volume",
+                title_font=dict(size=12, color="#424242"),
                 showgrid=True,
                 gridwidth=1,
-                gridcolor="rgba(189, 195, 199, 0.3)",
-                tickformat="$.2f",
-                tickfont=dict(size=10, color="#2C3E50"),
-                title_font=dict(size=12, color="#2C3E50"),
-                showline=True,
-                linewidth=2,
-                linecolor="#BDC3C7"
+                gridcolor="#E0E0E0",
+                tickformat=".2s",
+                tickfont=dict(size=11)
             ),
             
-            yaxis2=dict(  # Stats panel
-                showgrid=False,
-                showticklabels=False,
-                range=[0, 1]
-            ),
-            
-            yaxis4=dict(  # Volume axis - better scaling
-                title="<b>Volume (M)</b>",
-                showgrid=True,
-                gridwidth=1,
-                gridcolor="rgba(189, 195, 199, 0.3)",
-                tickformat=".1s",
-                tickfont=dict(size=11, color="#2C3E50"),
-                title_font=dict(size=13, color="#2C3E50"),
-                showline=True,
-                linewidth=2,
-                linecolor="#BDC3C7",
-                range=[0, df["Volume"].max() * 1.1]  # Better volume scaling
-            ),
-            
-            # Professional styling
-            plot_bgcolor="#FEFEFE",
-            paper_bgcolor="#FFFFFF",
-            margin=dict(l=50, r=10, t=80, b=60),
-            
-            # Enhanced interactivity
             hovermode="x unified",
-            
-            # Clean font
-            font=dict(family="Arial", color="#2C3E50", size=11)
-        )
-
-        # Volume legend - cleaner and more visible
-        fig.add_annotation(
-            text="<b>Volume Legend:</b> <span style='color:#4CAF50; font-size:16px'>■</span> Normal Up  <span style='color:#F44336; font-size:16px'>■</span> Normal Down  <span style='color:#FFA726; font-size:16px'>■</span> High Vol  <span style='color:#FF6B35; font-size:16px'>■</span> Very High Vol",
-            xref="paper", yref="paper",
-            x=0.01, y=0.37,
-            showarrow=False,
-            font=dict(size=11, color="#2C3E50", family="Arial"),
-            bgcolor="rgba(255,255,255,0.95)",
-            bordercolor="#34495E",
-            borderwidth=1
+            font=dict(family="Segoe UI, Arial, sans-serif", color="#212121")
         )
 
         return fig
@@ -1584,6 +1528,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886)
+
 
 
 
