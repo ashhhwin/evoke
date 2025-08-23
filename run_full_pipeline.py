@@ -52,7 +52,8 @@ def read_pk_from_gcs(blob_path: str) -> pd.DataFrame:
     bucket = client.bucket(GCS_BUCKET)
     blob = bucket.blob(blob_path)
     content = blob.download_as_bytes()
-    df = pd.read_parquet(io.BytesIO(content))
+    df = pl.read_parquet(io.BytesIO(content))
+    df = df.to_pandas()
     if "Symbol" in df.columns:
         df["Symbol"] = df["Symbol"].astype(str)
     return df
@@ -275,6 +276,7 @@ EODHD_SECRET_NAME = "eodhd_api_key"
 
 if __name__ == "__main__":
     run_eodhd_pipeline()
+
 
 
 
