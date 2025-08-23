@@ -242,7 +242,8 @@ def load_all_historical_data():
 
 #ashwin insane cache optimization strat ends here
 def load_historical_close_prices(ticker: str, bucket_name="historical_data_evoke", folder="Final_data_parquet") -> pd.DataFrame:
-'''ashwin commenting begins here   
+    
+    '''ashwin commenting begins here   
     fs = gcsfs.GCSFileSystem()
     all_files = fs.ls(f"{bucket_name}/{folder}")
     parquet_files = [f.replace(f"{bucket_name}/", "") for f in all_files if f.endswith(".parquet")]
@@ -254,7 +255,7 @@ def load_historical_close_prices(ticker: str, bucket_name="historical_data_evoke
         [read_pk_from_gcs_cached(f) for f in parquet_files],
         ignore_index=True
     )
-ashwin commenting ends here'''
+    ashwin commenting ends here'''
     full_df = load_all_historical_data() 
     df = full_df[full_df["Symbol"].str.upper() == ticker.upper()]
 
@@ -315,6 +316,7 @@ EODHD_SECRET_NAME = "eodhd_api_key"
 
 if __name__ == "__main__":
     run_eodhd_pipeline()
+
 
 
 
