@@ -218,8 +218,31 @@ def run_historical_pipeline(start: str, end: str):
     except Exception as e:
         log_progress(f"Historical download failed: {e}")
         return f"Failed: {e}"  
+#ashwin insane cache optimization strat begins here
+@functools.lru_cache(maxsize=1)
+def load_all_historical_data():
+    """Load and concatenate ALL parquet files once"""
+    fs = gcsfs.GCSFileSystem()
+    bucket_name = "historical_data_evoke"
+    folder = "Final_data_parquet"
+    
+    all_files = fs.ls(f"{bucket_name}/{folder}")
+    parquet_files = [f.replace(f"{bucket_name}/", "") for f in all_files if f.endswith(".parquet")]
+    
+    if not parquet_files:
+        raise FileNotFoundError(f"No parquet files found in gs://{bucket_name}/{folder}")
+    
+    # This happens only ONCE
+    full_df = pd.concat(
+        [read_pk_from_gcs_cached(f) for f in parquet_files],
+        ignore_index=True
+    )
+    return full_df
 
+
+#ashwin insane cache optimization strat ends here
 def load_historical_close_prices(ticker: str, bucket_name="historical_data_evoke", folder="Final_data_parquet") -> pd.DataFrame:
+'''ashwin commenting begins here   
     fs = gcsfs.GCSFileSystem()
     all_files = fs.ls(f"{bucket_name}/{folder}")
     parquet_files = [f.replace(f"{bucket_name}/", "") for f in all_files if f.endswith(".parquet")]
@@ -231,7 +254,8 @@ def load_historical_close_prices(ticker: str, bucket_name="historical_data_evoke
         [read_pk_from_gcs_cached(f) for f in parquet_files],
         ignore_index=True
     )
-
+ashwin commenting ends here'''
+    full_df = load_all_historical_data() 
     df = full_df[full_df["Symbol"].str.upper() == ticker.upper()]
 
     required_columns = ["Trade_Date", "P_Close", "Volume", "Close_Close", "V_14D_MA", "V_50D_MA"]
@@ -291,6 +315,7 @@ EODHD_SECRET_NAME = "eodhd_api_key"
 
 if __name__ == "__main__":
     run_eodhd_pipeline()
+
 
 
 
