@@ -722,6 +722,7 @@ def plot_close_price_history(ticker: str, df: pd.DataFrame):
         )
         fig.update_layout(height=800, width=1400)
         return fig
+
 ## ashwin changes start here for excel workbook
 
 def load_df(filepath):
@@ -1518,6 +1519,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886)
+
 
 
 
