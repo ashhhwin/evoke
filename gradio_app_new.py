@@ -119,7 +119,7 @@ def get_eps_revenue_changes(ticker_filter=None):
         return df
     except Exception as e:
         return pd.DataFrame({"Error": [f"Error loading EPS/Revenue changes: {e}"]})
-
+'''
 def plot_eps_revenue(ticker: str, data_type: str):
     try:
         eps_df, rev_df = load_eps_and_revenue_data()
@@ -140,7 +140,38 @@ def plot_eps_revenue(ticker: str, data_type: str):
         return eps_plot, rev_plot
     except Exception as e:
         return go.Figure(layout_title_text=f"Error loading EPS: {e}"), go.Figure(layout_title_text=f"Error loading Revenue: {e}")
+'''
+def plot_eps_revenue(ticker: str, data_type: str):
+    try:
+        eps_df, rev_df = load_eps_and_revenue_data()
+        eps, rev = get_ticker_data(ticker, eps_df, rev_df)
 
+        # Choose only quarterly or annual columns
+        if data_type == "Quarterly":
+            cols = [c for c in eps.index if c.startswith("Q")]
+        else:
+            cols = [c for c in eps.index if not c.startswith("Q") and c != "api_run_date"]
+
+        # Filter to only existing columns in the current Series
+        cols = [c for c in cols if c in eps.index and c in rev.index]
+
+        if not cols:
+            raise ValueError(f"No {data_type} columns found for ticker {ticker}.")
+
+        # EPS Plot
+        eps_plot = go.Figure()
+        eps_plot.add_trace(go.Scatter(x=cols, y=eps.loc[cols].values.flatten(), mode='lines+markers', name="EPS"))
+        eps_plot.update_layout(title=f"{ticker} EPS ({data_type})", xaxis_title="Period", yaxis_title="EPS")
+
+        # Revenue Plot
+        rev_plot = go.Figure()
+        rev_plot.add_trace(go.Scatter(x=cols, y=rev.loc[cols].values.flatten(), mode='lines+markers', name="Revenue"))
+        rev_plot.update_layout(title=f"{ticker} Revenue ({data_type})", xaxis_title="Period", yaxis_title="Revenue (in millions)")
+
+        return eps_plot, rev_plot
+
+    except Exception as e:
+        return go.Figure(layout_title_text=f"Error loading EPS: {e}"), go.Figure(layout_title_text=f"Error loading Revenue: {e}")
 def display_latest_ticker_snapshot(ticker: str):
     try:
         row = load_latest_eodhd_merged(ticker)
@@ -1634,6 +1665,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886, pwa=True, debug=True)
+
 
 
 
