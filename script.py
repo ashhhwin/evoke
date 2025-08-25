@@ -694,7 +694,7 @@ def run_daily_bulk_download(tickers: List[str]):
     except Exception as e:
         log_progress(f"[ERROR] Cleaning/52w stage failed: {e}")
         return "Pipeline finished with errors at cleaning/52w stage"
-     '''   
+    '''   
     try:
         new_hist = pd.concat([hist_df, today_enriched], ignore_index=True)
         new_hist.sort_values("Trade_Date", inplace=True)
@@ -715,7 +715,7 @@ def run_daily_bulk_download(tickers: List[str]):
             log_progress(f"📤 Uploaded parquet chunk: gs://{BUCKET_NAME}/{dest_path} ({len(chunk)} rows)")
     except Exception as e:
         log_progress(f"[ERROR] Failed parquet append stage: {e}")
-'''
+    '''
     # ===== Robust parquet append stage (replace your existing try/except block) =====
     try:
         # 1) Combine and sanitize
