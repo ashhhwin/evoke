@@ -190,7 +190,11 @@ def generate_daily_revisions_report():
 
     def send_email_notification(subject, body, attachment_path, attachment_filename):
         sender_email = "anuashwork@gmail.com"
-        password = "vapw nkcy jlup rsrs"
+        client = secretmanager.SecretManagerServiceClient()
+        name = "projects/555005178535/secrets/email_app_password/versions/latest"
+        response = client.access_secret_version(request={"name": name})
+        password = response.payload.data.decode("UTF-8")
+    
 
         to_addrs = ["anuashwork@gmail.com"]
         cc_addrs = [] # Add any CC emails here
