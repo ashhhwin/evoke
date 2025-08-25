@@ -546,10 +546,10 @@ def run_finnhub_data_pipeline(tickers: List[str]):
 
 def run_daily_bulk_download(tickers: List[str]):
     
-    date_str = "2025-08-20"
-    today = datetime.strptime(date_str, "%Y-%m-%d").date()
-    #today= date.today()
-    #date_str = today.isoformat()
+    #date_str = "2025-08-20"
+    #today = datetime.strptime(date_str, "%Y-%m-%d").date()
+    today= date.today()
+    date_str = today.isoformat()
     nyse = mcal.get_calendar('NYSE')
     schedule = nyse.schedule(start_date=today, end_date=today)
     trading_days = schedule.index.date.tolist()
@@ -668,6 +668,7 @@ def run_daily_bulk_download(tickers: List[str]):
     #final_df = process_chunk(final_df) --- REMOVE AFTER TEST
     #append_daily_chunk_to_latest(daily_chunk=final_df,date_column="Trade_Date",bucket_name="historical_data_evoke",final_data_folder="Final_data_sql",base_name="eodhd_",max_rows=1_000_000) ---REMOVE AFTER TEST
     # Build cleaned SQL-friendly CSV with 52w metrics
+    
     try:
         # Read back the merged CSV we just uploaded (ensures we're using identical contents)
         #with fs.open(f"{DAILY_INPUT_BASE}/{date_str}/EODHD/eod_us_{date_str}_merged.csv", "rb") as f: --remove after test
@@ -693,7 +694,7 @@ def run_daily_bulk_download(tickers: List[str]):
     except Exception as e:
         log_progress(f"[ERROR] Cleaning/52w stage failed: {e}")
         return "Pipeline finished with errors at cleaning/52w stage"
-        
+     '''   
     try:
         new_hist = pd.concat([hist_df, today_enriched], ignore_index=True)
         new_hist.sort_values("Trade_Date", inplace=True)
@@ -714,7 +715,102 @@ def run_daily_bulk_download(tickers: List[str]):
             log_progress(f"📤 Uploaded parquet chunk: gs://{BUCKET_NAME}/{dest_path} ({len(chunk)} rows)")
     except Exception as e:
         log_progress(f"[ERROR] Failed parquet append stage: {e}")
-
+'''
+    # ===== Robust parquet append stage (replace your existing try/except block) =====
+    try:
+        # 1) Combine and sanitize
+        new_hist = pd.concat([hist_df, today_enriched], ignore_index=True)
+        # Ensure Trade_Date is tz-naive datetime64[ns] (no time component)
+        new_hist["Trade_Date"] = pd.to_datetime(new_hist["Trade_Date"], errors="coerce").dt.tz_localize(None)
+        # (Optional) strip time to midnight to avoid split wobble
+        #new_hist["Trade_Date"] = new_hist["Trade_Date"].dt.normalize()
+    
+        # Drop exact dupes by (Trade_Date, Symbol); keep the newest row if duplicates
+        if {"Trade_Date", "Symbol"}.issubset(new_hist.columns):
+            new_hist.sort_values(["Trade_Date", "Symbol"], inplace=True)
+            new_hist = new_hist.drop_duplicates(subset=["Trade_Date", "Symbol"], keep="last")
+        else:
+            # As a fallback, just sort by Trade_Date
+            new_hist.sort_values("Trade_Date", inplace=True)
+    
+        new_hist.reset_index(drop=True, inplace=True)
+    
+        # 2) Sanity: ensure today's rows exist (if not, log & continue gracefully)
+        _today = pd.to_datetime(date_str).tz_localize(None).normalize()
+        has_today = (new_hist["Trade_Date"] == _today).any()
+        log_progress(f"🔎 Contains today's data ({_today.date()}): {bool(has_today)}")
+        if not has_today:
+            log_progress("[WARNING] No rows for today in new_hist — check earlier stages (filter, date dtype, joins).")
+    
+        # 3) Chunk by row count (stable, deterministic)
+        max_rows = 1_000_000
+        total_rows = len(new_hist)
+        if total_rows == 0:
+            log_progress("[WARNING] new_hist is empty — skipping parquet save.")
+        else:
+            # Helper: build filename from the MIN and MAX dates within the chunk
+            def chunk_filename(df_chunk: pd.DataFrame) -> str:
+                dmin = pd.to_datetime(df_chunk["Trade_Date"].min()).strftime("%Y%m%d")
+                dmax = pd.to_datetime(df_chunk["Trade_Date"].max()).strftime("%Y%m%d")
+                return f"eodhd_{dmin}_to_{dmax}.parquet"
+    
+            # Optional: only overwrite early chunks if needed
+            SKIP_IF_EXISTS_FOR_EARLY_CHUNKS = True
+    
+            fs = gcsfs.GCSFileSystem()
+            bucket_prefix = f"{BUCKET_NAME}/{HIST_PARQUET_FOLDER}".rstrip("/")
+    
+            def gcs_exists(path_no_gs: str) -> bool:
+                # path_no_gs example: historical_data_evoke/Final_data_sql/eodhd_20240101_to_20240228.parquet
+                try:
+                    return fs.exists(path_no_gs)
+                except Exception:
+                    return False
+    
+            # Slice and upload
+            start = 0
+            part_idx = 0
+            last_uploaded_path = None
+    
+            while start < total_rows:
+                end = min(start + max_rows, total_rows)
+                chunk = new_hist.iloc[start:end]
+    
+                fname = chunk_filename(chunk)
+                dest_rel = f"{HIST_PARQUET_FOLDER}/{fname}"
+                dest_no_gs = f"{BUCKET_NAME}/{dest_rel}"
+    
+                # For the very last chunk, always write (it contains today's data if present)
+                is_last_chunk = (end == total_rows)
+    
+                if SKIP_IF_EXISTS_FOR_EARLY_CHUNKS and (not is_last_chunk) and gcs_exists(dest_no_gs):
+                    log_progress(f"⏭️  Skipping unchanged early chunk (exists): gs://{dest_no_gs}  [{len(chunk)} rows]")
+                else:
+                    # Atomic write: write to a temp object, then copy/move
+                    tmp_obj = f"{dest_no_gs}.tmp-{int(time.time())}-{part_idx}"
+                    with fs.open(tmp_obj, "wb") as f:
+                        # write parquet bytes directly
+                        chunk.to_parquet(f, index=False, engine="pyarrow")
+                    # Move temp -> final (copy + delete)
+                    fs.cp(tmp_obj, dest_no_gs)
+                    fs.rm(tmp_obj)
+                    log_progress(f"📤 Uploaded parquet chunk: gs://{dest_no_gs}  ({len(chunk)} rows)")
+                    last_uploaded_path = f"gs://{dest_no_gs}"
+    
+                start = end
+                part_idx += 1
+    
+            # 4) Assert we ended with a file whose end date equals the global max Trade_Date
+            global_max_dt = pd.to_datetime(new_hist["Trade_Date"].max()).strftime("%Y%m%d")
+            # recompute expected last filename by slicing the last chunk again
+            last_chunk = new_hist.iloc[(total_rows - (total_rows % max_rows or max_rows)) : total_rows]
+            expected_last = f"eodhd_{pd.to_datetime(last_chunk['Trade_Date'].min()).strftime('%Y%m%d')}_to_{pd.to_datetime(last_chunk['Trade_Date'].max()).strftime('%Y%m%d')}.parquet"
+            log_progress(f"✅ Final chunk expected: {expected_last} (global max Trade_Date: {global_max_dt})")
+            if last_uploaded_path is None or (global_max_dt not in last_uploaded_path):
+                log_progress("[WARNING] Final chunk path didn't reflect the global max date — verify today’s rows & chunking.")
+    except Exception as e:
+        log_progress(f"[ERROR] Failed parquet append stage: {e}")
+# ===== End robust parquet append stage =====
     return f"Pipeline completed for {date_str}"
     
 
