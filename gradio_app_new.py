@@ -616,8 +616,229 @@ def _sentiment_color(event_text: str):
     if "down" in s and "up" not in s:
         return DOWN_COLOR
     return MIX_COLOR
+def plot_close_price_history(
+    ticker: str,
+    height: int = 1100,
+    catalyst_path: str = "gs://historical_data_evoke/catalyst_events.json",
+    earnings_path: str = "gs://historical_data_evoke/market_data/earnings_calendar.json",
+):
+    try:
+        df = load_historical_close_prices(ticker)
+        if df is None or len(df) < 2:
+            fig = go.Figure()
+            fig.add_annotation(
+                text=f"Insufficient data for {ticker}",
+                x=0.5, y=0.5, xref="paper", yref="paper", showarrow=False,
+                font=dict(size=18, color=TEXT_MUTED)
+            )
+            fig.update_layout(autosize=True, height=max(700, height), paper_bgcolor="#FAFAFA")
+            return fig
 
-# ---------------- Main ----------------
+        df = df.sort_values("Trade_Date").reset_index(drop=True)
+        df["Trade_Date"] = pd.to_datetime(df["Trade_Date"])
+
+        x_min = pd.to_datetime(df["Trade_Date"].min())
+        x_max = pd.to_datetime(df["Trade_Date"].max())
+        win_lower = (x_min - pd.Timedelta(days=3)).date()
+        win_upper = (x_max + pd.Timedelta(days=3)).date()
+
+        def _in_window(d): return (d is not None) and (win_lower <= d <= win_upper)
+
+        curr = float(df["P_Close"].iloc[-1])
+        start = float(df["P_Close"].iloc[0])
+        total_ret = _pct(curr, start)
+
+        lb = min(252, len(df))
+        df52 = df.iloc[-lb:]
+        hi52 = float(df52["P_Close"].max())
+        lo52 = float(df52["P_Close"].min())
+        idx_hi52 = int(df52["P_Close"].idxmax())
+        idx_lo52 = int(df52["P_Close"].idxmin())
+        dt_hi52 = df.loc[idx_hi52, "Trade_Date"].date()
+        dt_lo52 = df.loc[idx_lo52, "Trade_Date"].date()
+
+        vol_curr = float(df["Volume"].iloc[-1])
+        vol_ma20 = float(df["Volume"].rolling(20).mean().iloc[-1]) if len(df) >= 20 else None
+
+        r1d = _ret_over_n(df, 1)
+        r1w = _ret_over_n(df, 5)
+        r1m = _ret_over_n(df, 21)
+
+        catalysts = [ev for ev in _get_catalysts(catalyst_path, ticker) if _in_window(ev["date"])]
+        earnings  = [ev for ev in _get_earnings(earnings_path, ticker)  if _in_window(ev["date"])]
+
+        fig = make_subplots(
+            rows=2, cols=1, shared_xaxes=True,
+            row_heights=[0.76, 0.24], vertical_spacing=0.06,
+            subplot_titles=("Price", "Volume")
+        )
+
+        fig.add_trace(go.Scatter(
+            x=df["Trade_Date"], y=df["P_Close"], mode="lines",
+            name="Close", line=dict(color=PRICE_LINE, width=3.0),
+            hovertemplate="Date: %{x|%Y-%m-%d}<br>Close: <b>$%{y:,.2f}</b><extra></extra>"
+        ), row=1, col=1)
+
+        fig.add_hline(y=hi52, line=dict(color=HL_BLUE, width=2.4), row=1)
+        fig.add_hline(y=lo52, line=dict(color=HL_BROWN, width=2.4), row=1)
+        fig.add_annotation(xref="paper", yref="y1", x=0.004, y=hi52,
+                           text=f"<b>52W High</b> {_fmt(hi52, True)}",
+                           showarrow=False, xanchor="left", yanchor="middle",
+                           font=dict(size=12, color=HL_BLUE), bgcolor="rgba(30,58,138,0.06)")
+        fig.add_annotation(xref="paper", yref="y1", x=0.004, y=lo52,
+                           text=f"<b>52W Low</b> {_fmt(lo52, True)}",
+                           showarrow=False, xanchor="left", yanchor="middle",
+                           font=dict(size=12, color=HL_BROWN), bgcolor="rgba(124,45,18,0.06)")
+
+        if catalysts:
+            cat_x, cat_y, cat_text, cat_color = [], [], [], []
+            for ev in catalysts:
+                cx, cy = _closest_price(df, ev["date"])
+                cat_x.append(cx); cat_y.append(cy)
+                cat_text.append(ev["event"])
+                cat_color.append(_sentiment_color(ev["event"]))
+                fig.add_vline(x=cx, line_width=1, line_dash="dot", line_color="#9CA3AF", row=1, col=1)
+
+            fig.add_trace(go.Scatter(
+                x=cat_x, y=cat_y, mode="markers",
+                marker=dict(size=9, color=cat_color, line=dict(width=0.6, color="#ffffff")),
+                name="Catalyst",
+                text=cat_text,
+                hovertemplate="%{x|%Y-%m-%d}<br>%{text}<extra></extra>",
+                showlegend=False
+            ), row=1, col=1)
+
+        for ev in earnings:
+            ex, _ = _closest_price(df, ev["date"])
+            fig.add_vline(x=ex, line_width=1.5, line_dash="dash", line_color=EARN_LINE, row=1, col=1)
+            tag = "Earnings" + (f" {ev['hour']}" if ev.get("hour") else "")
+            fig.add_annotation(
+                x=ex, y=1.0, xref="x1", yref="paper",
+                text=tag, showarrow=False,
+                xanchor="center", yanchor="bottom",
+                font=dict(size=11, color="#0C4A6E"),
+                bgcolor="rgba(14,165,233,0.10)"
+            )
+
+        vol_colors = np.where(df["P_Close"].diff() >= 0, UP_COLOR, DOWN_COLOR)
+        fig.add_trace(go.Bar(
+            x=df["Trade_Date"], y=df["Volume"],
+            marker_color=vol_colors, opacity=0.88,
+            name="Volume",
+            hovertemplate="Date: %{x|%Y-%m-%d}<br>Volume: <b>%{y:,.0f}</b><extra></extra>"
+        ), row=2, col=1)
+        if len(df) >= 20:
+            fig.add_trace(go.Scatter(
+                x=df["Trade_Date"], y=df["Volume"].rolling(20).mean(),
+                mode="lines", line=dict(width=2.0, color=VOL_MA),
+                name="Vol 20D MA",
+                hovertemplate="20D MA: <b>%{y:,.0f}</b><extra></extra>"
+            ), row=2, col=1)
+
+        fig.update_layout(
+            autosize=True,
+            height=height,
+            plot_bgcolor="#FFFFFF",
+            paper_bgcolor="#FAFAFA",
+            margin=dict(l=74, r=24, t=96, b=66),
+            font=dict(family="Arial, sans-serif", size=14, color=TEXT),
+            hovermode="x unified",
+            hoverlabel=dict(bgcolor="white", font_size=13),
+            showlegend=False,
+            xaxis_rangeslider_visible=False,
+        )
+        fig.update_xaxes(range=[x_min, x_max], row=1, col=1)
+        fig.update_xaxes(range=[x_min, x_max], row=2, col=1)
+        fig.update_yaxes(title_text="Price (USD)", tickprefix="$", tickformat=",.2f",
+                         showgrid=True, gridcolor=GRID, zeroline=False, row=1, col=1)
+        fig.update_yaxes(title_text="Volume", tickformat=".2s",
+                         showgrid=False, zeroline=False, row=2, col=1)
+        fig.update_xaxes(showgrid=True, gridcolor=GRID, row=1, col=1)
+        fig.update_xaxes(title_text="Date", showgrid=True, gridcolor=GRID, row=2, col=1)
+
+        for ann in fig.layout.annotations:
+            ann.font.size = 15
+            ann.x = 0.01
+            ann.xanchor = "left"
+
+        start_d = x_min.date()
+        end_d   = x_max.date()
+
+        fig.add_shape(type="rect", xref="paper", yref="paper",
+                      x0=0, x1=1, y0=1.00, y1=1.06,
+                      line=dict(width=0), fillcolor=HEADER_BG, layer="below")
+
+        fig.add_annotation(
+            xref="paper", yref="paper", x=0.012, y=1.045,
+            text=f"<b>{ticker.upper()} • Close Price & Volume</b> "
+                 f"<span style='font-size:12px;color:{TEXT_MUTED}'>({start_d} → {end_d})</span>",
+            showarrow=False, xanchor="left", yanchor="middle",
+            font=dict(size=15, color=TEXT)
+        )
+
+        def ribbon_block(x, title, line1, line2, align="left"):
+            fig.add_annotation(
+                xref="paper", yref="paper", x=x, y=1.025,
+                text=f"<span style='font-size:11px;color:{TEXT_MUTED};letter-spacing:.5px'><b>{title}</b></span>",
+                showarrow=False, xanchor=align, yanchor="middle", align=align,
+                font=dict(size=11, color=TEXT)
+            )
+            fig.add_annotation(
+                xref="paper", yref="paper", x=x, y=1.005,
+                text=f"{line1}<br>{line2}",
+                showarrow=False, xanchor=align, yanchor="middle", align=align,
+                font=dict(size=12, color=TEXT)
+            )
+
+        range_pct = _pct(hi52, lo52) or 0.0
+        price_l1  = f"Current: <b>{_fmt(curr, True)}</b>   High: {_fmt(hi52, True)}"
+        price_l2  = f"Low: {_fmt(lo52, True)}   Range: {range_pct:.1f}%"
+
+        def pct_html(label, val):
+            if val is None: return f"{label}: —"
+            col = UP_COLOR if val >= 0 else DOWN_COLOR
+            return f"{label}: <span style='color:{col}'><b>{val:+.2f}%</b></span>"
+
+        returns_l1 = f"{pct_html('1 Day', r1d)}   {pct_html('1 Week', r1w)}"
+        returns_l2 = f"{pct_html('1 Month', r1m)}   {pct_html('Total', total_ret)}"
+
+        volume_l1  = f"Current: <b>{_fmt(vol_curr)}</b>"
+        volume_l2  = f"Average (20D): {_fmt(vol_ma20)}"
+
+        ribbon_block(0.17, "PRICE DATA", price_l1,  price_l2,  "left")
+        ribbon_block(0.50, "RETURNS",    returns_l1, returns_l2, "center")
+        ribbon_block(0.83, "VOLUME",     volume_l1,  volume_l2,  "right")
+
+        fig.update_layout(
+            xaxis=dict(
+                rangeselector=dict(
+                    buttons=[
+                        dict(count=1, label="1M", step="month", stepmode="backward"),
+                        dict(count=3, label="3M", step="month", stepmode="backward"),
+                        dict(count=6, label="6M", step="month", stepmode="backward"),
+                        dict(count=1, label="YTD", step="year", stepmode="todate"),
+                        dict(count=1, label="1Y", step="year", stepmode="backward"),
+                        dict(step="all", label="All"),
+                    ],
+                    x=0.01, y=-0.20, xanchor="left", yanchor="top",
+                    bgcolor="rgba(0,0,0,0)", activecolor="#E5E7EB",
+                    font=dict(size=12)
+                )
+            )
+        )
+
+        return fig
+
+    except Exception as e:
+        fig = go.Figure()
+        fig.add_annotation(
+            text=f"Error: {str(e)}",
+            x=0.5, y=0.5, xref="paper", yref="paper",
+            showarrow=False, font=dict(size=18, color=DOWN_COLOR)
+        )
+        fig.update_layout(autosize=True, height=max(700, height), paper_bgcolor="#FAFAFA")
+        return fig
+'''# ---------------- Main ----------------
 def plot_close_price_history(
     ticker: str,
     height: int = 1000,
@@ -868,7 +1089,7 @@ def plot_close_price_history(
         )
         fig.update_layout(autosize=True, height=max(700, height), paper_bgcolor="#FAFAFA")
         return fig
-        
+'''        
 ## ashwin changes start here for excel workbook
 
 def load_df(filepath):
@@ -1665,6 +1886,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 app.launch(server_name="0.0.0.0", server_port=7886, pwa=True, debug=True)
+
 
 
 
