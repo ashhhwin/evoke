@@ -535,3 +535,5 @@ def generate_daily_revisions_report():
 
     else:
         print("\n[INFO] No changes detected. Report not generated.")
+if __name__ == "__main__":
+    generate_daily_revisions_report()
