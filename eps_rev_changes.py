@@ -194,6 +194,7 @@ def generate_daily_revisions_report():
         name = "projects/555005178535/secrets/email_app_password/versions/latest"
         response = client.access_secret_version(request={"name": name})
         password = response.payload.data.decode("UTF-8")
+
         #password = "vapw nkcy jlup rsrs"
 
         to_addrs = ["anuashwork@gmail.com"]
