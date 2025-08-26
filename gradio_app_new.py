@@ -1922,7 +1922,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 '''
-with gr.Tab("Earnings Calendar"):
+with gr.TabItem("Earnings Calendar"):
 
     gr.Markdown("## Upcoming Earnings Calendar")
     from datetime import date, timedelta
@@ -1950,7 +1950,6 @@ with gr.Tab("Earnings Calendar"):
         entries = load_earnings_calendar_json(from_date, to_date)
 
         # Apply market cap filter
-        from your_module import load_latest_market_cap_dict  # update import if needed
         mcap_dict = load_latest_market_cap_dict()
         bins = {
             "Nano Cap": (0, 50),
@@ -1979,6 +1978,7 @@ with gr.Tab("Earnings Calendar"):
         inputs=[from_cal, to_cal, ticker_input, mcap_filter],
         outputs=[status_box, calendar_output]
     )
-#app.launch(server_name="0.0.0.0", server_port=7886, pwa=True, debug=True)
+app.launch(server_name="0.0.0.0", server_port=7888, pwa=True, debug=True)
+
 
 
