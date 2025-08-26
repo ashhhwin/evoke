@@ -1189,6 +1189,7 @@ def load_df(filepath):
     return df
 
 def transform_to_wrkbook(df):
+    print("I AM INSIDE NESTED EXCEL FUNCTION")
     base_headers = ["Symbol", "Name", "Type", "Sector", "Industry", "Mkt. Cap", "Float", "Earnings Date"]
     group_data = ["4W Revenue", "4W EPS", "Now Revenue", "Now EPS", "% Revenue", "% EPS"]
     all_headers = base_headers + group_data
@@ -1300,7 +1301,7 @@ def transform_to_wrkbook(df):
 def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     import os
     from google.cloud import storage
-
+    print("INSIDE EXCEL FUNCTION")
     bucket = "historical_data_evoke"
     gcs_path = f"market_data/revisions/{csv_filename}"
     local_csv_path = f"/tmp/{csv_filename}"
@@ -1457,8 +1458,10 @@ def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
     ".join(f"{k}: {v}" for k, v in summary.items())
 
     ## ashwin change
+    print("EXCEL FUNCTION BEFORE CALLING")
     excel_path = generate_excel_from_comparison_csv(output_file)
-
+    print("EXCEL FUNCTION AFTER CALLING")
+    
     return "Comparison and insights complete.", eps_plot, rev_plot, eps_movers_table, rev_movers_table, summary_text, excel_path
 
 
@@ -1967,5 +1970,6 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, pwa=True, debug=True)
+
 
 
