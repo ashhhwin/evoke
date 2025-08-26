@@ -1966,15 +1966,6 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 
-app.launch(server_name="0.0.0.0", server_port=7888, pwa=True, debug=True)
-
-
-
-
-
-
-
-
-
+#app.launch(server_name="0.0.0.0", server_port=7888, pwa=True, debug=True)
 
 
