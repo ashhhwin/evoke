@@ -1891,7 +1891,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             inputs=[from_date, to_date, period, month_dropdown,market_cap_dropdown],
             outputs=[ status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box, excel_download]
         )
-   '''     
+'''     
     with gr.Tab("Earnings Calendar"):
         
         gr.Markdown("## Earnings Calendar")
@@ -1980,4 +1980,5 @@ with gr.Tab("Earnings Calendar"):
         outputs=[status_box, calendar_output]
     )
 #app.launch(server_name="0.0.0.0", server_port=7886, pwa=True, debug=True)
+
 
