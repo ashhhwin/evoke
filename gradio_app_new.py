@@ -1922,10 +1922,52 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 '''
-with gr.TabItem("Earnings Calendar"):
+def update_calendar(from_date, to_date, ticker_filter, mcap_bin):
+    """
+    Fetches and filters earnings data based on user selections.
+    """
+    entries = load_earnings_calendar_json(from_date, to_date)
+    
+    # Apply market cap filter first, if selected.
+    if mcap_bin != "All":
+        mcap_dict = load_latest_market_cap_dict()
+        # IMPORTANT: Values are adjusted to reflect millions/billions, matching typical market cap data.
+        bins = {
+            "Nano Cap": (0, 50e6),           # Up to 50 million
+            "Micro Cap": (50e6, 300e6),       # 50 million to 300 million
+            "Small Cap": (300e6, 2e9),        # 300 million to 2 billion
+            "Mid Cap": (2e9, 10e9),         # 2 billion to 10 billion
+            "Large Cap": (10e9, 200e9),       # 10 billion to 200 billion
+            "Mega Cap": (200e9, float("inf")), # Over 200 billion
+        }
+        
+        low, high = bins[mcap_bin]
+        # This list comprehension filters the entries based on their market cap.
+        entries = [
+            e for e in entries
+            # Using .get() is safer and avoids errors if a symbol is not in the dictionary.
+            if low <= mcap_dict.get(e.get("symbol"), -1) < high
+        ]
 
+    # Apply ticker filter to the already-filtered list.
+    if ticker_filter: # This check is cleaner than 'not ticker_filter or ...'
+        final_entries = [
+            # Using .get() prevents errors if 'symbol' key is missing or None.
+            e for e in entries if ticker_filter.lower() in e.get('symbol', '').lower()
+        ]
+    else:
+        final_entries = entries # If no ticker is entered, use the list as-is.
+        
+    summary = f"Loaded {len(final_entries)} earnings announcements."
+
+    return summary, render_earnings_calendar(final_entries, "")
+
+
+# --- UI Layout ---
+with gr.TabItem("Earnings Calendar"):
     gr.Markdown("## Upcoming Earnings Calendar")
-    from datetime import date, timedelta
+    
+    # Calculate default dates. It's cleaner to do this outside the main logic.
     default_from = (date.today() - timedelta(days=2)).strftime("%Y-%m-%d")
     default_to = (date.today() + timedelta(days=5)).strftime("%Y-%m-%d")
 
@@ -1935,50 +1977,25 @@ with gr.TabItem("Earnings Calendar"):
         ticker_input = gr.Textbox(label="Search Ticker (optional)", placeholder="e.g. AAPL, TSLA")
 
     with gr.Row():
+        # The label is simplified as the values are now self-explanatory.
         mcap_filter = gr.Dropdown(
-            label="Market Cap Bin (in USD millions)",
+            label="Market Cap",
             choices=["All", "Nano Cap", "Micro Cap", "Small Cap", "Mid Cap", "Large Cap", "Mega Cap"],
             value="All"
         )
 
-    load_btn = gr.Button("Load Calendar")
-    status_box = gr.Textbox(label="", interactive=False, visible=True, lines=1)
+    load_btn = gr.Button("Load Calendar", variant="primary")
+    status_box = gr.Textbox(label="Status", interactive=False)
     calendar_output = gr.HTML()
 
-    def update_calendar(from_date, to_date, ticker_filter, mcap_bin):
-        import datetime
-        entries = load_earnings_calendar_json(from_date, to_date)
-
-        # Apply market cap filter
-        mcap_dict = load_latest_market_cap_dict()
-        bins = {
-            "Nano Cap": (0, 50),
-            "Micro Cap": (50, 300),
-            "Small Cap": (300, 2000),
-            "Mid Cap": (2000, 10000),
-            "Large Cap": (10000, 200000),
-            "Mega Cap": (200000, float("inf")),
-        }
-
-        if mcap_bin != "All":
-            low, high = bins[mcap_bin]
-            entries = [
-                e for e in entries 
-                if low <= mcap_dict.get(e["symbol"], -1) < high
-            ]
-
-        # Apply ticker filter
-        filtered = [e for e in entries if not ticker_filter or ticker_filter.lower() in e['symbol'].lower()]
-        summary = f"Loaded {len(filtered)} earnings"
-
-        return summary, render_earnings_calendar(filtered, "")
-
+    # Event listener to connect the button click to our function.
     load_btn.click(
         fn=update_calendar,
         inputs=[from_cal, to_cal, ticker_input, mcap_filter],
         outputs=[status_box, calendar_output]
     )
 app.launch(server_name="0.0.0.0", server_port=7888, pwa=True, debug=True)
+
 
 
 
