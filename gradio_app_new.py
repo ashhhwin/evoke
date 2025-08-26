@@ -1932,37 +1932,6 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             inputs=[from_date, to_date, period, month_dropdown,market_cap_dropdown],
             outputs=[ status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box, excel_download]
         )
-'''     
-    with gr.Tab("Earnings Calendar"):
-        
-        gr.Markdown("## Earnings Calendar")
-        from datetime import date, timedelta
-        default_from = (date.today() - timedelta(days=2)).strftime("%Y-%m-%d")
-        default_to = (date.today() + timedelta(days=5)).strftime("%Y-%m-%d")
-    
-        with gr.Row():
-            from_cal = Calendar(label="From Date", value=default_from)
-            to_cal = Calendar(label="To Date", value=default_to)
-            ticker_input = gr.Textbox(label="Search Ticker (optional)", placeholder="e.g. AAPL, TSLA")
-    
-        load_btn = gr.Button("Load Calendar")
-        status_box = gr.Textbox(label="", interactive=False, visible=True, lines=1)
-        calendar_output = gr.HTML()
-    
-        def update_calendar(from_date, to_date, ticker_filter):
-            import datetime
-            entries = load_earnings_calendar_json(from_date, to_date)
-            filtered = [e for e in entries if not ticker_filter or ticker_filter.lower() in e['symbol'].lower()]
-            summary = f"Loaded {len(filtered)} earnings"
-            
-            return summary, render_earnings_calendar(filtered, "")
-    
-        load_btn.click(
-            fn=update_calendar,
-            inputs=[from_cal, to_cal, ticker_input],
-            outputs=[status_box, calendar_output]
-        )
-'''
 # --- UI Layout ---
     with gr.Tab("Earnings Calendar"):
         gr.Markdown("## Upcoming Earnings Calendar")
@@ -1996,6 +1965,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 app.launch(server_name="0.0.0.0", server_port=7888, pwa=True, debug=True)
+
 
 
 
