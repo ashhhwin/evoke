@@ -5,6 +5,8 @@ import gradio as gr
 from datetime import timedelta, datetime, timezone
 from google.cloud import secretmanager
 from gradio_app_new import app as gradio_app  # This is your big dashboard script
+import os
+os.environ["GRADIO_TEMP_DIR"] = "/mnt/evoke_data/gradio_cache"
 
 app = Flask(__name__, template_folder="templates")
 app.secret_key = "ashwinramv"  # Replace with env/secret manager in production
