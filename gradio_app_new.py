@@ -1883,7 +1883,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             inputs=[from_cal, to_cal, ticker_input],
             outputs=[status_box, calendar_output]
         )
-app.launch(server_name="0.0.0.0", server_port=7886, pwa=True, debug=True)
+#app.launch(server_name="0.0.0.0", server_port=7886, pwa=True, debug=True)
+
 
 
 
