@@ -32,7 +32,45 @@ from google.cloud import storage
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
+from functools import lru_cache
+import pandas as pd
+import gcsfs
+from datetime import datetime
+import re
 
+@lru_cache
+def load_latest_market_cap_dict():
+    fs = gcsfs.GCSFileSystem()
+    base_path = "historical_data_evoke/market_data/daily/"
+
+    # Step 1: List all date folders and sort descending
+    date_folders = fs.ls(base_path)
+    date_folders = [p for p in date_folders if re.search(r"\d{4}-\d{2}-\d{2}", p)]
+    sorted_folders = sorted(date_folders, reverse=True)
+
+    # Step 2: Try each folder until valid CSV is found
+    for folder in sorted_folders:
+        eodhd_path = f"{folder}/EODHD/"
+        try:
+            files = fs.ls(eodhd_path)
+            csv_files = [f for f in files if f.endswith(".csv")]
+            if not csv_files:
+                continue
+
+            # Try loading the first CSV
+            with fs.open(csv_files[0], "r") as f:
+                df = pd.read_csv(f)
+            
+            if "Symbol" in df.columns and "MarketCapitalization" in df.columns:
+                df = df[["Symbol", "MarketCapitalization"]].dropna()
+                df["MarketCapitalization"] = pd.to_numeric(df["MarketCapitalization"], errors="coerce")
+                return dict(zip(df["Symbol"], df["MarketCapitalization"]))
+        except Exception as e:
+            print(f"[WARN] Failed loading from {eodhd_path}: {e}")
+            continue
+
+    # If no valid file found
+    raise FileNotFoundError("No valid EODHD market cap CSV found in recent folders.")
 def get_fixed_periods():
     today = pd.Timestamp.today()
 
@@ -1853,10 +1891,10 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             inputs=[from_date, to_date, period, month_dropdown,market_cap_dropdown],
             outputs=[ status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box, excel_download]
         )
-        
+   '''     
     with gr.Tab("Earnings Calendar"):
         
-        gr.Markdown("## 📆 Upcoming Earnings Calendar")
+        gr.Markdown("## Earnings Calendar")
         from datetime import date, timedelta
         default_from = (date.today() - timedelta(days=2)).strftime("%Y-%m-%d")
         default_to = (date.today() + timedelta(days=5)).strftime("%Y-%m-%d")
@@ -1874,7 +1912,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             import datetime
             entries = load_earnings_calendar_json(from_date, to_date)
             filtered = [e for e in entries if not ticker_filter or ticker_filter.lower() in e['symbol'].lower()]
-            summary = f"✅ Loaded {len(filtered)} earnings from {len(entries)} entries ({from_date} to {to_date})"
+            summary = f"Loaded {len(filtered)} earnings"
             
             return summary, render_earnings_calendar(filtered, "")
     
@@ -1883,43 +1921,63 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             inputs=[from_cal, to_cal, ticker_input],
             outputs=[status_box, calendar_output]
         )
+'''
+with gr.Tab("Earnings Calendar"):
+
+    gr.Markdown("## Upcoming Earnings Calendar")
+    from datetime import date, timedelta
+    default_from = (date.today() - timedelta(days=2)).strftime("%Y-%m-%d")
+    default_to = (date.today() + timedelta(days=5)).strftime("%Y-%m-%d")
+
+    with gr.Row():
+        from_cal = Calendar(label="From Date", value=default_from)
+        to_cal = Calendar(label="To Date", value=default_to)
+        ticker_input = gr.Textbox(label="Search Ticker (optional)", placeholder="e.g. AAPL, TSLA")
+
+    with gr.Row():
+        mcap_filter = gr.Dropdown(
+            label="Market Cap Bin (in USD millions)",
+            choices=["All", "Nano Cap", "Micro Cap", "Small Cap", "Mid Cap", "Large Cap", "Mega Cap"],
+            value="All"
+        )
+
+    load_btn = gr.Button("Load Calendar")
+    status_box = gr.Textbox(label="", interactive=False, visible=True, lines=1)
+    calendar_output = gr.HTML()
+
+    def update_calendar(from_date, to_date, ticker_filter, mcap_bin):
+        import datetime
+        entries = load_earnings_calendar_json(from_date, to_date)
+
+        # Apply market cap filter
+        from your_module import load_latest_market_cap_dict  # update import if needed
+        mcap_dict = load_latest_market_cap_dict()
+        bins = {
+            "Nano Cap": (0, 50),
+            "Micro Cap": (50, 300),
+            "Small Cap": (300, 2000),
+            "Mid Cap": (2000, 10000),
+            "Large Cap": (10000, 200000),
+            "Mega Cap": (200000, float("inf")),
+        }
+
+        if mcap_bin != "All":
+            low, high = bins[mcap_bin]
+            entries = [
+                e for e in entries 
+                if low <= mcap_dict.get(e["symbol"], -1) < high
+            ]
+
+        # Apply ticker filter
+        filtered = [e for e in entries if not ticker_filter or ticker_filter.lower() in e['symbol'].lower()]
+        summary = f"Loaded {len(filtered)} earnings"
+
+        return summary, render_earnings_calendar(filtered, "")
+
+    load_btn.click(
+        fn=update_calendar,
+        inputs=[from_cal, to_cal, ticker_input, mcap_filter],
+        outputs=[status_box, calendar_output]
+    )
 #app.launch(server_name="0.0.0.0", server_port=7886, pwa=True, debug=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
