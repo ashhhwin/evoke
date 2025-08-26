@@ -64,6 +64,7 @@ def load_latest_market_cap_dict():
             if "Symbol" in df.columns and "MarketCapitalization" in df.columns:
                 df = df[["Symbol", "MarketCapitalization"]].dropna()
                 df["MarketCapitalization"] = pd.to_numeric(df["MarketCapitalization"], errors="coerce")
+                print("Loaded EODHD Data for MarketCap Bins - Earning Page")
                 return dict(zip(df["Symbol"], df["MarketCapitalization"]))
         except Exception as e:
             print(f"[WARN] Failed loading from {eodhd_path}: {e}")
@@ -1965,6 +1966,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 app.launch(server_name="0.0.0.0", server_port=7888, pwa=True, debug=True)
+
 
 
 
