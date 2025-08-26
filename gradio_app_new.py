@@ -85,12 +85,12 @@ def update_calendar(from_date, to_date, ticker_filter, mcap_bin):
         mcap_dict = load_latest_market_cap_dict()
         # IMPORTANT: Values are adjusted to reflect millions/billions, matching typical market cap data.
         bins = {
-            "Nano Cap": (0, 50e6),           # Up to 50 million
-            "Micro Cap": (50e6, 300e6),       # 50 million to 300 million
-            "Small Cap": (300e6, 2e9),        # 300 million to 2 billion
-            "Mid Cap": (2e9, 10e9),         # 2 billion to 10 billion
-            "Large Cap": (10e9, 200e9),       # 10 billion to 200 billion
-            "Mega Cap": (200e9, float("inf")), # Over 200 billion
+            "Nano Cap": (0, 50),           # Up to 50 million
+            "Micro Cap": (50, 300),       # 50 million to 300 million
+            "Small Cap": (300, 2e3),        # 300 million to 2 billion
+            "Mid Cap": (2e3, 10e3),         # 2 billion to 10 billion
+            "Large Cap": (10e3, 200e3),       # 10 billion to 200 billion
+            "Mega Cap": (200e3, float("inf")), # Over 200 billion
         }
         
         low, high = bins[mcap_bin]
@@ -1967,6 +1967,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 app.launch(server_name="0.0.0.0", server_port=7888, pwa=True, debug=True)
+
 
 
 
