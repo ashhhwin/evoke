@@ -5,6 +5,7 @@ import json
 import time
 import os
 os.environ["GRADIO_TEMP_DIR"] = "/mnt/evoke_data/gradio_cache"
+os.makedirs("/mnt/evoke_data/gradio_cache", exist_ok=True)
 import gradio as gr
 from run_full_pipeline import (
     run_finnhub_pipeline,
@@ -1306,7 +1307,8 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     print("INSIDE EXCEL FUNCTION")
     bucket = "historical_data_evoke"
     gcs_path = f"market_data/revisions/{csv_filename}"
-    local_csv_path = f"/tmp/{csv_filename}"
+    #local_csv_path = f"/tmp/{csv_filename}"
+    local_csv_path = f"/mnt/evoke_data/gradio_cache/{csv_filename}"
 
     client = storage.Client()
 
@@ -1323,11 +1325,7 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     wb.save(excel_path)
     return excel_path
 
-
-
 ## ashwin changes end here for excel workbook
-
-
 
 def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
     #added month=None
@@ -1972,6 +1970,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
