@@ -1964,7 +1964,7 @@ def update_calendar(from_date, to_date, ticker_filter, mcap_bin):
 
 
 # --- UI Layout ---
-with gr.TabItem("Earnings Calendar"):
+with gr.Tab("Earnings Calendar"):
     gr.Markdown("## Upcoming Earnings Calendar")
     
     # Calculate default dates. It's cleaner to do this outside the main logic.
@@ -1995,6 +1995,7 @@ with gr.TabItem("Earnings Calendar"):
         outputs=[status_box, calendar_output]
     )
 app.launch(server_name="0.0.0.0", server_port=7888, pwa=True, debug=True)
+
 
 
 
