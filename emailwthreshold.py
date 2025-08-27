@@ -157,23 +157,45 @@ def generate_daily_revisions_report():
         if mc_dollars >= 50e6:  return "Micro Cap"
         return "Nano Cap"
 
-    def merge_and_calculate_diff(df_old, df_new, value_prefix):
-        if df_old.empty or df_new.empty: return pd.DataFrame()
-        merged = pd.merge(df_old, df_new, on=['ticker', 'period'], how='inner', suffixes=('_old', '_new'))
-        old_col, new_col = f"{value_prefix}_old", f"{value_prefix}_new"
+def merge_and_calculate_diff(df_old, df_new, value_prefix):
+    if df_old.empty or df_new.empty:
+        return pd.DataFrame()
 
-        merged[old_col] = pd.to_numeric(merged[old_col], errors='coerce')
-        merged[new_col] = pd.to_numeric(merged[new_col], errors='coerce')
-        merged.dropna(subset=[old_col, new_col], inplace=True)
+    # Note: suffixes are _old/_new, so non-key overlaps (like period_type) will be duplicated
+    merged = pd.merge(
+        df_old, df_new,
+        on=['ticker', 'period'],
+        how='inner',
+        suffixes=('_old', '_new')
+    )
+    old_col, new_col = f"{value_prefix}_old", f"{value_prefix}_new"
 
-        # eliminate tiny float wiggles
-        unchanged = np.isclose(merged[old_col], merged[new_col], rtol=1e-08, atol=1e-10)
-        merged = merged[~unchanged].copy()
-        if merged.empty: return pd.DataFrame()
+    # Ensure numeric
+    merged[old_col] = pd.to_numeric(merged[old_col], errors='coerce')
+    merged[new_col] = pd.to_numeric(merged[new_col], errors='coerce')
+    merged.dropna(subset=[old_col, new_col], inplace=True)
 
-        merged['abs_change'] = merged[new_col] - merged[old_col]
-        merged['pct_change'] = (merged['abs_change'] / merged[old_col].replace(0, np.nan)) * 100
-        return merged.rename(columns={'period_type_x': 'period_type'})
+    # Drop effectively unchanged
+    unchanged = np.isclose(merged[old_col], merged[new_col], rtol=1e-08, atol=1e-10)
+    merged = merged[~unchanged].copy()
+    if merged.empty:
+        return pd.DataFrame()
+
+    # Keep a single period_type column
+    if 'period_type_old' in merged:
+        merged['period_type'] = merged['period_type_old']
+    elif 'period_type_x' in merged:  # safety if suffixes ever revert
+        merged['period_type'] = merged['period_type_x']
+    else:
+        # last resort: derive from period string
+        merged['period_type'] = merged['period'].apply(lambda x: 'Year' if YEAR_PATTERN.match(str(x)) else 'Quarter')
+
+    merged['abs_change'] = merged[new_col] - merged[old_col]
+    merged['pct_change'] = (merged['abs_change'] / merged[old_col].replace(0, np.nan)) * 100
+
+    # Return with a clean period_type column
+    cols = list(merged.columns)
+    return merged
 
     def update_catalyst_events(report_df, latest_date_str, gcs_path):
         if report_df.empty or 'ticker' not in report_df.columns:
@@ -289,7 +311,8 @@ def generate_daily_revisions_report():
     report_df['marketCapBin'] = report_df['marketCapitalization'].apply(get_market_cap_bin)
 
     # Sort for presentation
-    report_df = report_df.sort_values(by=['period_type', 'period', 'ticker'])
+    if 'period_type' not in report_df.columns:
+        report_df['period_type'] = report_df['period'].apply(lambda x: 'Year' if YEAR_PATTERN.match(str(x)) else 'Quarter')
 
     # Prepare summary
     if 'ticker' in report_df.columns:
