@@ -30,7 +30,7 @@ def get_latest_daily_date() -> str:
     dates = sorted({blob.name.split("/")[2] for blob in blobs if len(blob.name.split("/")) > 2}, reverse=True)
     if not dates:
         return "No data available"
-    return dates[0]
+    return dates
 
 run_date = get_latest_daily_date()
 print(run_date)
