@@ -26,8 +26,8 @@ HTML_OUTPUT_PATH = f'gs://{GCS_BUCKET}/eps_rev_changes'
 
 # ------------------ THRESHOLDS (inverse sensitivity by market cap) ------------------
 THRESHOLDS = {
-    "Mega Cap": 1.0,    # ≥ $200B
-    "Large Cap": 1.0,   # $10B–$200B
+    "Mega Cap": 0.5,    # ≥ $200B
+    "Large Cap": 0.7,   # $10B–$200B
     "Mid Cap": 3.0,     # $2B–$10B
     "Small Cap": 12.0,  # $300M–$2B
     "Micro Cap": 20.0,  # $50M–$300M
