@@ -1304,9 +1304,13 @@ def transform_to_wrkbook(df):
 def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     import os
     from google.cloud import storage
+    
     print("INSIDE EXCEL FUNCTION")
     bucket = "historical_data_evoke"
     gcs_path = f"market_data/revisions/{csv_filename}"
+    project_dir = "/home/shared/evoke_prod/evoke"
+    files_dir = os.path.join(project_dir, "downloads")
+    os.makedirs(files_dir, exist_ok=True)
     #local_csv_path = f"/tmp/{csv_filename}"
     
     #local_csv_path = f"/mnt/evoke_data/gradio_cache/{csv_filename}"
@@ -1326,6 +1330,8 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     #excel_path = local_csv_path.replace(".csv", ".xlsx")
     with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp_excel:
         excel_path = tmp_excel.name
+
+    excel_path = os.path.join(files_dir, f"market_data_{timestamp}.xlsx")
     wb.save(excel_path)
 
     print(f"Excel file created at: {excel_path}")
@@ -1979,6 +1985,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
