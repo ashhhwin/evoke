@@ -26,9 +26,9 @@ HTML_OUTPUT_PATH = f'gs://{GCS_BUCKET}/eps_rev_changes'
 
 # ------------------ THRESHOLDS (inverse sensitivity by market cap) ------------------
 THRESHOLDS = {
-    "Mega Cap": 0.5,    # ≥ $200B
-    "Large Cap": 0.7,   # $10B–$200B
-    "Mid Cap": 3.0,     # $2B–$10B
+    "Mega Cap": 2.0,    # ≥ $200B
+    "Large Cap": 3.5,   # $10B–$200B
+    "Mid Cap": 5.0,     # $2B–$10B
     "Small Cap": 12.0,  # $300M–$2B
     "Micro Cap": 20.0,  # $50M–$300M
     "Nano Cap": 30.0,   # < $50M
@@ -661,8 +661,7 @@ def generate_daily_revisions_report():
       </ul>
       
       <p style="margin-top: 1.5rem; color: #6b7280;">
-        📊 <b>Full interactive report attached</b> - highlighted rows show threshold crossings<br>
-        💡 <i>All</i> revisions are included for context, not just the threshold crossings
+        <b>Full interactive report attached</b> - highlighted rows show threshold crossings<br>
       </p>
       
       <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e5e7eb;">
