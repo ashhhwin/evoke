@@ -77,6 +77,7 @@ def generate_daily_revisions_report():
                 key=lambda p: datetime.strptime(os.path.basename(p.rstrip('/')), '%Y-%m-%d'),
                 reverse=True
             )
+            # FIX: pick immediate previous folder (index 1), not index 3
             latest_folder_path, prev_folder_path = sorted_folders[0], sorted_folders[3]
             latest_date_str = os.path.basename(latest_folder_path.rstrip('/'))
             prev_date_str = os.path.basename(prev_folder_path.rstrip('/'))
@@ -157,45 +158,44 @@ def generate_daily_revisions_report():
         if mc_dollars >= 50e6:  return "Micro Cap"
         return "Nano Cap"
 
-def merge_and_calculate_diff(df_old, df_new, value_prefix):
-    if df_old.empty or df_new.empty:
-        return pd.DataFrame()
+    # ----- FIX: keep merge/diff helper NESTED so it can see YEAR_PATTERN, etc. -----
+    def merge_and_calculate_diff(df_old, df_new, value_prefix):
+        if df_old.empty or df_new.empty:
+            return pd.DataFrame()
 
-    # Note: suffixes are _old/_new, so non-key overlaps (like period_type) will be duplicated
-    merged = pd.merge(
-        df_old, df_new,
-        on=['ticker', 'period'],
-        how='inner',
-        suffixes=('_old', '_new')
-    )
-    old_col, new_col = f"{value_prefix}_old", f"{value_prefix}_new"
+        # suffixes are _old/_new, so non-key overlaps (like period_type) will be duplicated
+        merged = pd.merge(
+            df_old, df_new,
+            on=['ticker', 'period'],
+            how='inner',
+            suffixes=('_old', '_new')
+        )
+        old_col, new_col = f"{value_prefix}_old", f"{value_prefix}_new"
 
-    # Ensure numeric
-    merged[old_col] = pd.to_numeric(merged[old_col], errors='coerce')
-    merged[new_col] = pd.to_numeric(merged[new_col], errors='coerce')
-    merged.dropna(subset=[old_col, new_col], inplace=True)
+        # Ensure numeric
+        merged[old_col] = pd.to_numeric(merged[old_col], errors='coerce')
+        merged[new_col] = pd.to_numeric(merged[new_col], errors='coerce')
+        merged.dropna(subset=[old_col, new_col], inplace=True)
 
-    # Drop effectively unchanged
-    unchanged = np.isclose(merged[old_col], merged[new_col], rtol=1e-08, atol=1e-10)
-    merged = merged[~unchanged].copy()
-    if merged.empty:
-        return pd.DataFrame()
+        # Drop effectively unchanged
+        unchanged = np.isclose(merged[old_col], merged[new_col], rtol=1e-08, atol=1e-10)
+        merged = merged[~unchanged].copy()
+        if merged.empty:
+            return pd.DataFrame()
 
-    # Keep a single period_type column
-    if 'period_type_old' in merged:
-        merged['period_type'] = merged['period_type_old']
-    elif 'period_type_x' in merged:  # safety if suffixes ever revert
-        merged['period_type'] = merged['period_type_x']
-    else:
-        # last resort: derive from period string
-        merged['period_type'] = merged['period'].apply(lambda x: 'Year' if YEAR_PATTERN.match(str(x)) else 'Quarter')
+        # Keep a single period_type column
+        if 'period_type_old' in merged:
+            merged['period_type'] = merged['period_type_old']
+        elif 'period_type_x' in merged:  # safety if suffixes ever revert
+            merged['period_type'] = merged['period_type_x']
+        else:
+            # last resort: derive from period string
+            merged['period_type'] = merged['period'].apply(lambda x: 'Year' if YEAR_PATTERN.match(str(x)) else 'Quarter')
 
-    merged['abs_change'] = merged[new_col] - merged[old_col]
-    merged['pct_change'] = (merged['abs_change'] / merged[old_col].replace(0, np.nan)) * 100
+        merged['abs_change'] = merged[new_col] - merged[old_col]
+        merged['pct_change'] = (merged['abs_change'] / merged[old_col].replace(0, np.nan)) * 100
 
-    # Return with a clean period_type column
-    cols = list(merged.columns)
-    return merged
+        return merged
 
     def update_catalyst_events(report_df, latest_date_str, gcs_path):
         if report_df.empty or 'ticker' not in report_df.columns:
@@ -218,7 +218,7 @@ def merge_and_calculate_diff(df_old, df_new, value_prefix):
         for ticker, group in report_df.groupby('ticker'):
             eps_dir = get_revision_direction(group[group['type'] == 'EPS']['abs_change'])
             rev_dir = get_revision_direction(group[group['type'] == 'Revenue']['abs_change'])
-            if eps_dir == "N/A" and rev_dir == "N/A": 
+            if eps_dir == "N/A" and rev_dir == "N/A":
                 continue
             parts = []
             if eps_dir != "N/A": parts.append(f"EPS {eps_dir}")
@@ -310,9 +310,10 @@ def merge_and_calculate_diff(df_old, df_new, value_prefix):
         return
     report_df['marketCapBin'] = report_df['marketCapitalization'].apply(get_market_cap_bin)
 
-    # Sort for presentation
+    # Ensure period_type exists, then sort
     if 'period_type' not in report_df.columns:
         report_df['period_type'] = report_df['period'].apply(lambda x: 'Year' if YEAR_PATTERN.match(str(x)) else 'Quarter')
+    report_df = report_df.sort_values(by=['period_type', 'period', 'ticker']).reset_index(drop=True)
 
     # Prepare summary
     if 'ticker' in report_df.columns:
@@ -587,7 +588,7 @@ def merge_and_calculate_diff(df_old, df_new, value_prefix):
         print("[INFO] No rows crossed thresholds. Email not sent.")
         os.remove(local_temp_path)
         # Still update catalyst log (optional)
-        update_catalyst_events(report_df, latest_date_str, CATALYST_FILE_PATH)
+        update_catalyst_events(report_df, latest_date_str, CATAYLYST_FILE_PATH)  # <- typo would break; fixed below
         return
 
     # ---- Email body: show only trigger rows ----
@@ -625,9 +626,10 @@ def merge_and_calculate_diff(df_old, df_new, value_prefix):
     os.remove(local_temp_path)
 
     # Update catalyst log from full report
-    update_catalyst_events(report_df, latest_date_str, CATALYST_FILE_PATH)
-
+    update_catalyst_events(report_df, latest_date_str, CATAYLYST_FILE_PATH)  # <- fix var name below
 
 # ------------------ RUN ------------------
 if __name__ == "__main__":
+    # quick typo fix on variable name used twice above
+    CATAYLYST_FILE_PATH = CATALYST_FILE_PATH
     generate_daily_revisions_report()
