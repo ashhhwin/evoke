@@ -295,7 +295,8 @@ def generate_daily_revisions_report():
     eps_changes.rename(columns={'eps_old': 'old_value', 'eps_new': 'new_value'}, inplace=True)
     rev_changes.rename(columns={'revenue_old': 'old_value', 'revenue_new': 'new_value'}, inplace=True)
 
-    report_df = pd.merge(report_df, market_cap_df, on='ticker', how='inner')
+    report_df = pd.concat([eps_changes, rev_changes], ignore_index=True)
+
     if report_df.empty:
         print("[INFO] No revisions. Skipping report and email.")
         return
