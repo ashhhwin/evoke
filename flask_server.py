@@ -101,11 +101,6 @@ def proxy_gradio_file(filename):
     else:
         return f"File not found: {filename}", 404
         
-@app.route("/file=<path:filename>")
-def proxy_gradio_file(filename):
-    # This proxies the download request to the internal Gradio server running on 127.0.0.1:7869
-    return redirect(f"http://127.0.0.1:7869/file={filename}")
-    
 # Launch Gradio on 127.0.0.1:7869 in the background
 def run_gradio():
     gradio_app.launch(server_name="127.0.0.1", server_port=7869, show_error=True, share=False, debug=True)
