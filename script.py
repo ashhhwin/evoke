@@ -741,7 +741,34 @@ def run_daily_bulk_download(tickers: List[str]):
         log_progress(f"🔎 Contains today's data ({_today.date()}): {bool(has_today)}")
         if not has_today:
             log_progress("[WARNING] No rows for today in new_hist — check earlier stages (filter, date dtype, joins).")
+
+        # ashwin adding changes
+
+        # 2b) Normalize dtypes for parquet stability
+        date_cols = ["Trade_Date", "F52W_H_DATE", "F52W_L_DATE", "Earnings_Date"]
+        numeric_cols = [
+            "Market_Cap","Beta","P_Open","P_High","P_Low","P_Close","Volume",
+            "Prev_Close","P_50D_MA","P_200D_MA","V_14D_MA","V_50D_MA","F52W_High","F52W_Low",
+            "Close_Open","Open_Close","High_Close","Low_Close","Close_Close",
+            "Shares_Out","Shares_Float","Short_Ratio","Short_Percent_Float",
+            "Shares_Insiders","Shares_Institutions"
+        ]
+        string_cols = ["Symbol","Company_Name","Type","Sector","Industry","Options"]
     
+        for col in date_cols:
+            if col in new_hist.columns:
+                new_hist[col] = pd.to_datetime(new_hist[col], errors="coerce", utc=True).dt.tz_convert(None)
+    
+        for col in numeric_cols:
+            if col in new_hist.columns:
+                new_hist[col] = pd.to_numeric(new_hist[col], errors="coerce")
+    
+        for col in string_cols:
+            if col in new_hist.columns:
+                new_hist[col] = new_hist[col].astype("string")
+        
+        # ashwin ending changes
+        
         # 3) Chunk by row count (stable, deterministic)
         max_rows = 1_000_000
         total_rows = len(new_hist)
