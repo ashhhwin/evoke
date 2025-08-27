@@ -281,11 +281,23 @@ def load_eps_revenue_changes() -> pd.DataFrame:
     
 def get_latest_daily_date() -> str:
     client = storage.Client()
-    blobs = client.list_blobs(GCS_BUCKET, prefix="market_data/daily/", delimiter="/")
-    dates = sorted({blob.name.split("/")[2] for blob in blobs if len(blob.name.split("/")) > 2}, reverse=True)
-    if not dates:
+    blobs = client.list_blobs(GCS_BUCKET, prefix="market_data/daily/")
+
+    latest_date = None
+    date_pattern = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+    for blob in blobs:
+        parts = blob.name.split("/")
+        if len(parts) > 2:
+            candidate = parts[2]
+            if date_pattern.fullmatch(candidate):
+                if (latest_date is None) or (candidate > latest_date):
+                    latest_date = candidate  # update latest date
+
+    if latest_date is None:
         return "No data available"
-    return dates[0]
+
+    return latest_date
 
 
 def run_pipelines_concurrently(tickers: list[str]) -> None:
@@ -316,6 +328,7 @@ EODHD_SECRET_NAME = "eodhd_api_key"
 
 if __name__ == "__main__":
     run_eodhd_pipeline()
+
 
 
 
