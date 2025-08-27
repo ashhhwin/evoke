@@ -1332,8 +1332,9 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
         excel_path = tmp_excel.name
 
     excel_path = os.path.join(files_dir, f"{csv_filename}.xlsx")
+    #os.chmod(excel_path, 0o644)
     wb.save(excel_path)
-
+    os.chmod(excel_path, 0o644)
     print(f"Excel file created at: {excel_path}")
     print(f"File exists: {os.path.exists(excel_path)}")
     print(f"File size: {os.path.getsize(excel_path) if os.path.exists(excel_path) else 'N/A'}")
@@ -1985,6 +1986,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
