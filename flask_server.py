@@ -89,7 +89,18 @@ def logout():
     return redirect("/")
 
 from flask import redirect
+from flask import send_file
 
+@app.route("/file=<path:filename>")
+def proxy_gradio_file(filename):
+    filepath = os.path.join("downloads", filename)
+    full_path = os.path.abspath(filepath)
+    
+    if os.path.isfile(full_path):
+        return send_file(full_path, as_attachment=True)
+    else:
+        return f"File not found: {filename}", 404
+        
 @app.route("/file=<path:filename>")
 def proxy_gradio_file(filename):
     # This proxies the download request to the internal Gradio server running on 127.0.0.1:7869
