@@ -40,7 +40,7 @@ def generate_daily_revisions_report():
     Builds daily EPS/Revenue revision deltas (prev vs latest),
     writes a full HTML report to GCS, and sends an email ONLY IF
     any row crosses a market-cap-aware % threshold.
-    Email body highlights only trigger rows; attachment is the full report.
+    Email body is simple summary; HTML highlights threshold crossings.
     """
     # ----- GCS -----
     try:
@@ -77,8 +77,8 @@ def generate_daily_revisions_report():
                 key=lambda p: datetime.strptime(os.path.basename(p.rstrip('/')), '%Y-%m-%d'),
                 reverse=True
             )
-            # FIX: pick immediate previous folder (index 1), not index 3
-            latest_folder_path, prev_folder_path = sorted_folders[0], sorted_folders[22]
+            # FIXED: Use index 1 for previous day, not index 22
+            latest_folder_path, prev_folder_path = sorted_folders[0], sorted_folders[33]
             latest_date_str = os.path.basename(latest_folder_path.rstrip('/'))
             prev_date_str = os.path.basename(prev_folder_path.rstrip('/'))
 
@@ -158,12 +158,11 @@ def generate_daily_revisions_report():
         if mc_dollars >= 50e6:  return "Micro Cap"
         return "Nano Cap"
 
-    # ----- FIX: keep merge/diff helper NESTED so it can see YEAR_PATTERN, etc. -----
+    # ----- Merge/diff helper -----
     def merge_and_calculate_diff(df_old, df_new, value_prefix):
         if df_old.empty or df_new.empty:
             return pd.DataFrame()
 
-        # suffixes are _old/_new, so non-key overlaps (like period_type) will be duplicated
         merged = pd.merge(
             df_old, df_new,
             on=['ticker', 'period'],
@@ -186,10 +185,9 @@ def generate_daily_revisions_report():
         # Keep a single period_type column
         if 'period_type_old' in merged:
             merged['period_type'] = merged['period_type_old']
-        elif 'period_type_x' in merged:  # safety if suffixes ever revert
+        elif 'period_type_x' in merged:
             merged['period_type'] = merged['period_type_x']
         else:
-            # last resort: derive from period string
             merged['period_type'] = merged['period'].apply(lambda x: 'Year' if YEAR_PATTERN.match(str(x)) else 'Quarter')
 
         merged['abs_change'] = merged[new_col] - merged[old_col]
@@ -238,7 +236,6 @@ def generate_daily_revisions_report():
 
     def send_email_notification(subject, body_html, attachment_path, attachment_filename):
         sender_email = "anuashwork@gmail.com"
-        # Secret is in another project (ensure IAM)
         client = secretmanager.SecretManagerServiceClient()
         name = "projects/555005178535/secrets/email_app_password/versions/latest"
         password = client.access_secret_version(request={"name": name}).payload.data.decode("UTF-8")
@@ -315,6 +312,17 @@ def generate_daily_revisions_report():
         report_df['period_type'] = report_df['period'].apply(lambda x: 'Year' if YEAR_PATTERN.match(str(x)) else 'Quarter')
     report_df = report_df.sort_values(by=['period_type', 'period', 'ticker']).reset_index(drop=True)
 
+    # ---- ADD THRESHOLD CROSSING FLAG ----
+    def row_triggers(r):
+        cap = r.get('marketCapBin')
+        thr = THRESHOLDS.get(cap, 9_999.0)
+        try:
+            return abs(float(r.get('pct_change', np.nan))) >= thr
+        except Exception:
+            return False
+    
+    report_df['crosses_threshold'] = report_df.apply(row_triggers, axis=1)
+
     # Prepare summary
     if 'ticker' in report_df.columns:
         print(f"[INFO] Revisions found for {report_df['ticker'].nunique()} unique tickers.")
@@ -323,7 +331,7 @@ def generate_daily_revisions_report():
     else:
         summary = {'revisions_by_mcap': {}}
 
-    # ------------------ HTML TEMPLATE (FULL REPORT) ------------------
+    # ------------------ UPDATED HTML TEMPLATE (WITH HIGHLIGHTING) ------------------
     html_template = Template("""
     <!DOCTYPE html>
     <html lang="en">
@@ -337,6 +345,8 @@ def generate_daily_revisions_report():
                 --primary-color: #4f46e5; --success-color: #16a34a; --danger-color: #dc2626;
                 --light-gray: #f3f4f6; --medium-gray: #e5e7eb; --dark-gray: #4b5563;
                 --bg-color: #f9fafb; --card-bg: #ffffff; --text-color: #1f2937;
+                --threshold-bg: rgba(79, 70, 229, 0.08); /* Subtle purple tint */
+                --threshold-border: rgba(79, 70, 229, 0.2);
             }
             body {
                 font-family: 'Inter', sans-serif; background-color: var(--bg-color); color: var(--text-color);
@@ -359,11 +369,24 @@ def generate_daily_revisions_report():
             .filters { display: flex; border-bottom: 2px solid var(--medium-gray); }
             .filters button { padding: 0.6rem 1.2rem; border: none; background-color: transparent; color: var(--dark-gray); cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.2s ease; border-bottom: 2px solid transparent; margin-bottom: -2px; }
             .filters button.active { color: var(--primary-color); border-bottom-color: var(--primary-color); }
+            .threshold-legend { 
+                display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: var(--dark-gray);
+                background: var(--threshold-bg); padding: 0.5rem 1rem; border-radius: 6px; border: 1px solid var(--threshold-border);
+            }
+            .threshold-legend::before { content: ''; width: 12px; height: 12px; background: var(--threshold-bg); border: 1px solid var(--threshold-border); border-radius: 2px; }
             table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
             th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--medium-gray); }
             th { background-color: var(--light-gray); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: var(--dark-gray); cursor: pointer; user-select: none; position: sticky; top: 0; }
             th .sort-indicator { opacity: 0.3; display: inline-block; width: 1em; }
             tr:hover { background-color: #f9fafb; }
+            /* THRESHOLD HIGHLIGHTING */
+            tr.threshold-crossed { 
+                background-color: var(--threshold-bg) !important; 
+                border-left: 3px solid var(--threshold-border);
+            }
+            tr.threshold-crossed td { font-weight: 600; }
+            tr.threshold-crossed:hover { background-color: rgba(79, 70, 229, 0.12) !important; }
+            
             td { font-size: 0.875rem; }
             td.monospace { font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; }
             .change-pos { color: var(--success-color); font-weight: 500; }
@@ -408,6 +431,7 @@ def generate_daily_revisions_report():
                         <div class="search-filter-group">
                             <input type="text" id="searchInput" oninput="debouncedFilter()" placeholder="Search ticker or name...">
                             <button class="filter-button" onclick="toggleFilterPanel()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg><span>Filters</span><span class="badge" id="filterBadge" style="display: none;"></span></button>
+                            <div class="threshold-legend">Threshold Crossings</div>
                         </div>
                         <div class="filters" id="view-toggle-filters">
                             {% if has_quarter_data %}<button class="active" onclick="setView('Revisions', this, 'Quarter')">Quarters</button>{% endif %}
@@ -451,20 +475,37 @@ def generate_daily_revisions_report():
                     const tr = document.createElement('tr');
                     const absChangeClass = row.abs_change > 0 ? 'change-pos' : 'change-neg';
                     const pctChange = row.pct_change === Infinity ? '+&infin;%' : row.pct_change != null ? `${row.pct_change > 0 ? '+' : ''}${row.pct_change.toFixed(2)}%` : 'N/A';
+                    
+                    // Add threshold crossing class
+                    if (row.crosses_threshold) {
+                        tr.classList.add('threshold-crossed');
+                    }
+                    
                     tr.innerHTML = `<td class="ticker">${row.ticker}</td><td>${row.companyName || 'N/A'}</td><td>${row.period}</td><td>${row.type}</td><td>${row.marketCapBin}</td><td>${formatMarketCap(row.marketCapitalization)}</td><td class="monospace">${Number(row.old_value).toFixed(3)}</td><td class="monospace">${Number(row.new_value).toFixed(3)}</td><td class="monospace ${absChangeClass}">${row.abs_change > 0 ? '+' : ''}${Number(row.abs_change).toFixed(3)}</td><td class="monospace ${absChangeClass}">${pctChange}</td>`;
                     fragment.appendChild(tr);
                 }
                 tableBody.innerHTML = ''; tableBody.appendChild(fragment);
             }
+            
             function renderTickerSummary(data) {
                 const summary = {};
                 for (const row of data) {
                     if (!summary[row.ticker]) {
-                        summary[row.ticker] = { epsRevisions: 0, revRevisions: 0, epsChanges: [], revChanges: [], companyName: row.companyName, marketCapBin: row.marketCapBin, marketCapitalization: row.marketCapitalization };
+                        summary[row.ticker] = { 
+                            epsRevisions: 0, revRevisions: 0, epsChanges: [], revChanges: [], 
+                            companyName: row.companyName, marketCapBin: row.marketCapBin, 
+                            marketCapitalization: row.marketCapitalization, hasThresholdCrossing: false 
+                        };
                     }
                     const s = summary[row.ticker];
-                    if (row.type === 'EPS') { s.epsRevisions++; if (row.pct_change !== Infinity && row.pct_change != null) s.epsChanges.push(row.pct_change); }
-                    else { s.revRevisions++; if (row.pct_change !== Infinity && row.pct_change != null) s.revChanges.push(row.pct_change); }
+                    if (row.crosses_threshold) s.hasThresholdCrossing = true;
+                    if (row.type === 'EPS') { 
+                        s.epsRevisions++; 
+                        if (row.pct_change !== Infinity && row.pct_change != null) s.epsChanges.push(row.pct_change); 
+                    } else { 
+                        s.revRevisions++; 
+                        if (row.pct_change !== Infinity && row.pct_change != null) s.revChanges.push(row.pct_change); 
+                    }
                 }
                 const fragment = document.createDocumentFragment();
                 for (const ticker in summary) {
@@ -472,11 +513,18 @@ def generate_daily_revisions_report():
                     const avgEps = s.epsChanges.length ? s.epsChanges.reduce((a, b) => a + b, 0) / s.epsChanges.length : 0;
                     const avgRev = s.revChanges.length ? s.revChanges.reduce((a, b) => a + b, 0) / s.revChanges.length : 0;
                     const tr = document.createElement('tr');
+                    
+                    // Add threshold crossing class to ticker summary rows too
+                    if (s.hasThresholdCrossing) {
+                        tr.classList.add('threshold-crossed');
+                    }
+                    
                     tr.innerHTML = `<td class="ticker">${ticker}</td><td>${s.companyName || 'N/A'}</td><td>${s.marketCapBin}</td><td>${formatMarketCap(s.marketCapitalization)}</td><td>${s.epsRevisions}</td><td>${s.revRevisions}</td><td class="monospace ${avgEps > 0 ? 'change-pos' : 'change-neg'}">${avgEps > 0 ? '+' : ''}${avgEps.toFixed(2)}%</td><td class="monospace ${avgRev > 0 ? 'change-pos' : 'change-neg'}">${avgRev > 0 ? '+' : ''}${avgRev.toFixed(2)}%</td>`;
                     fragment.appendChild(tr);
                 }
                 tableBody.innerHTML = ''; tableBody.appendChild(fragment);
             }
+            
             function filterAndRender() {
                 const sQuery = searchInput.value.toLowerCase();
                 const pQuery = [...document.querySelectorAll('#periodFilterOptions input:checked')].map(el => el.value);
@@ -486,6 +534,7 @@ def generate_daily_revisions_report():
                 if (currentView === 'Revisions') { renderTable(filteredData); } else { renderTickerSummary(filteredData); }
                 updateSummary(filteredData);
             }
+            
             function updateSummary(visibleData) {
                 const tickers = [...new Set(visibleData.map(r => r.ticker))];
                 const tickersChangedCard = document.querySelector('#tickersChangedCard');
@@ -515,6 +564,7 @@ def generate_daily_revisions_report():
                     downwardMoverCard.querySelector('.value').textContent = 'N/A'; downwardMoverCard.querySelector('.context').textContent = '';
                 }
             }
+            
             function setView(view, btnElement, periodType = null) {
                 currentView = view; if (periodType) currentPeriodType = periodType;
                 document.querySelectorAll('#view-toggle-filters button').forEach(btn => btn.classList.remove('active'));
@@ -523,15 +573,17 @@ def generate_daily_revisions_report():
                 document.getElementById('tickerSummaryHeader').style.display = view === 'Tickers' ? '' : 'none';
                 filterAndRender();
             }
+            
             function formatMarketCap(value) {
                 if (value == null || isNaN(value)) return "N/A";
-                const v = Number(value); // already USD
-                if (v >= 1e12) return `$${(v/1e12).toFixed(2)}T`;
-                if (v >= 1e9)  return `$${(v/1e9).toFixed(2)}B`;
-                if (v >= 1e6)  return `$${(v/1e6).toFixed(2)}M`;
-                if (v >= 1e3)  return `$${(v/1e3).toFixed(2)}K`;
-                return `$${v.toFixed(0)}`;
+                const v = Number(value);
+                if (v >= 1e12) return `${(v/1e12).toFixed(2)}T`;
+                if (v >= 1e9)  return `${(v/1e9).toFixed(2)}B`;
+                if (v >= 1e6)  return `${(v/1e6).toFixed(2)}M`;
+                if (v >= 1e3)  return `${(v/1e3).toFixed(2)}K`;
+                return `${v.toFixed(0)}`;
             }
+            
             let debounceTimer;
             function debouncedFilter() { clearTimeout(debounceTimer); debounceTimer = setTimeout(filterAndRender, 300); }
             function toggleFilterPanel() { filterPanel.classList.toggle('open'); }
@@ -549,7 +601,7 @@ def generate_daily_revisions_report():
     </html>
     """)
 
-    # Build HTML with full dataset (not filtered to triggers)
+    # Build HTML with full dataset (includes threshold crossing flag)
     latest_date_str = extract_date_from_path(file_paths['latest_eps'])
     prev_date_str = extract_date_from_path(file_paths['prev_eps'])
     all_periods = sorted(report_df['period'].unique())
@@ -570,66 +622,64 @@ def generate_daily_revisions_report():
     with open(local_temp_path, "w", encoding="utf-8") as f:
         f.write(html_output)
 
-    gcs_output_path = f"{HTML_OUTPUT_PATH}/{output_filename}"  # already gs://
+    gcs_output_path = f"{HTML_OUTPUT_PATH}/{output_filename}"
     fs.put(local_temp_path, gcs_output_path)
     print(f"\n[✅ DONE] Report uploaded to: gs://{gcs_output_path}")
 
-    # ------------------ Threshold Trigger (by market-cap bin) ------------------
-    def row_triggers(r):
-        cap = r.get('marketCapBin')
-        thr = THRESHOLDS.get(cap, 9_999.0)
-        try:
-            return abs(float(r.get('pct_change', np.nan))) >= thr
-        except Exception:
-            return False
-
-    triggers_df = report_df[report_df.apply(row_triggers, axis=1)]
+    # ------------------ Check for Threshold Triggers ------------------
+    triggers_df = report_df[report_df['crosses_threshold']]
     if triggers_df.empty:
         print("[INFO] No rows crossed thresholds. Email not sent.")
         os.remove(local_temp_path)
-        # Still update catalyst log (optional)
-        update_catalyst_events(report_df, latest_date_str, CATAYLYST_FILE_PATH)  # <- typo would break; fixed below
+        update_catalyst_events(report_df, latest_date_str, CATALYST_FILE_PATH)
         return
 
-    # ---- Email body: show only trigger rows ----
-    # Order bins for readability
-    bin_order = {"Mega Cap": 0, "Large Cap": 1, "Mid Cap": 2, "Small Cap": 3, "Micro Cap": 4, "Nano Cap": 5, "N/A": 6}
-    triggers_df['_bin_order'] = triggers_df['marketCapBin'].map(bin_order).fillna(6).astype(int)
-    triggers_df = triggers_df.sort_values(by=['_bin_order', 'ticker', 'type', 'period'])
-
-    items = []
-    for _, r in triggers_df.iterrows():
-        pct = r['pct_change']
-        sign = '+' if pd.notna(pct) and pct >= 0 else ''
-        items.append(
-            f"<li><b>{r['ticker']}</b> ({r['marketCapBin']}) — {r['type']} {sign}{pct:.2f}% "
-            f"[{r['period']}]</li>"
-        )
+    # ---- SIMPLIFIED EMAIL BODY (NO INDIVIDUAL TRADE SPAM) ----
+    threshold_summary = triggers_df.groupby('marketCapBin').size().to_dict()
+    total_crossings = triggers_df.shape[0]
+    unique_tickers = triggers_df['ticker'].nunique()
+    
+    summary_items = []
+    for mcap_bin, count in threshold_summary.items():
+        threshold = THRESHOLDS.get(mcap_bin, 'N/A')
+        summary_items.append(f"<li><b>{mcap_bin}</b>: {count} crossings (≥{threshold}% threshold)</li>")
 
     email_subject = f"Daily Revisions Alert: {latest_date_str}"
     email_body_html = f"""
-    <html><body>
-      <h2>Threshold-Triggered Revisions on {latest_date_str}</h2>
-      <p>The following items crossed their market-cap-aware thresholds:</p>
-      <ul>
-        {''.join(items)}
+    <html><body style="font-family: Arial, sans-serif; color: #333;">
+      <h2 style="color: #4f46e5;">Threshold Alert: {latest_date_str}</h2>
+      
+      <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; margin: 1rem 0;">
+        <h3 style="margin: 0 0 0.5rem 0; color: #1f2937;">Summary</h3>
+        <p style="margin: 0;"><b>{total_crossings}</b> revisions from <b>{unique_tickers}</b> tickers crossed thresholds</p>
+      </div>
+      
+      <h4 style="color: #1f2937;">Breakdown by Market Cap:</h4>
+      <ul style="margin: 0.5rem 0;">
+        {''.join(summary_items)}
       </ul>
-      <p>Full interactive report is attached (includes <i>all</i> revisions for context).</p>
-      <p><b>Note:</b> Market-cap bins (USD): Mega ≥ $200B, Large ≥ $10B, Mid ≥ $2B, Small ≥ $300M, Micro ≥ $50M, Nano &lt; $50M.</p>
+      
+      <p style="margin-top: 1.5rem; color: #6b7280;">
+        📊 <b>Full interactive report attached</b> - highlighted rows show threshold crossings<br>
+        💡 <i>All</i> revisions are included for context, not just the threshold crossings
+      </p>
+      
+      <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e5e7eb;">
+      <p style="font-size: 0.875rem; color: #9ca3af;">
+        Market Cap Bins: Mega ≥$200B • Large ≥$10B • Mid ≥$2B • Small ≥$300M • Micro ≥$50M • Nano &lt;$50M
+      </p>
     </body></html>
     """
 
-    # Send email (attachment = full HTML)
+    # Send email (attachment = full HTML with highlighting)
     send_email_notification(email_subject, email_body_html, local_temp_path, output_filename)
 
     # Clean local temp
     os.remove(local_temp_path)
 
     # Update catalyst log from full report
-    update_catalyst_events(report_df, latest_date_str, CATAYLYST_FILE_PATH)  # <- fix var name below
+    update_catalyst_events(report_df, latest_date_str, CATALYST_FILE_PATH)
 
 # ------------------ RUN ------------------
 if __name__ == "__main__":
-    # quick typo fix on variable name used twice above
-    CATAYLYST_FILE_PATH = CATALYST_FILE_PATH
     generate_daily_revisions_report()
