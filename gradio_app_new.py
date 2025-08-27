@@ -1488,7 +1488,7 @@ def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
     eps_movers_table,
     rev_movers_table,
     summary_text,
-    download_link_html  # This is gr.HTML
+    excel_path  # This is gr.HTML
     )
 
 
@@ -1957,7 +1957,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
         to_date.change(fn=update_periods, inputs=[to_date], outputs=period)
 
-        excel_download = gr.HTML(label="Download Excel Report")
+        excel_download = gr.File(label="📥 Download Excel Report", interactive=True, visible=True)
 
         run_comparison_btn.click(
             fn=run_comparison,
@@ -1997,6 +1997,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
