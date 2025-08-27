@@ -1973,12 +1973,12 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
         to_date.change(fn=update_periods, inputs=[to_date], outputs=period)
 
-        excel_download = gr.File(label="📥 Download Excel Report", interactive=True, visible=True)
+        #excel_download = gr.File(label="📥 Download Excel Report", interactive=True, visible=True)
 
         run_comparison_btn.click(
             fn=run_comparison,
             inputs=[from_date, to_date, period, month_dropdown,market_cap_dropdown],
-            outputs=[ status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box, gr.HTML(label="Download Excel Report")]
+            outputs=[ status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box, gr.HTML(label="Download Excel Report here")]
         )
 # --- UI Layout ---
     with gr.Tab("Earnings Calendar"):
@@ -2013,6 +2013,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
