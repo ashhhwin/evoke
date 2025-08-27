@@ -4,8 +4,8 @@ from openpyxl.utils import get_column_letter
 import json
 import time
 import os
-os.environ["GRADIO_TEMP_DIR"] = "/mnt/evoke_data/gradio_cache"
-os.makedirs("/mnt/evoke_data/gradio_cache", exist_ok=True)
+#os.environ["GRADIO_TEMP_DIR"] = "/mnt/evoke_data/gradio_cache"
+#os.makedirs("/mnt/evoke_data/gradio_cache", exist_ok=True)
 import gradio as gr
 from run_full_pipeline import (
     run_finnhub_pipeline,
@@ -1308,8 +1308,10 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     bucket = "historical_data_evoke"
     gcs_path = f"market_data/revisions/{csv_filename}"
     #local_csv_path = f"/tmp/{csv_filename}"
-    local_csv_path = f"/mnt/evoke_data/gradio_cache/{csv_filename}"
-
+    
+    #local_csv_path = f"/mnt/evoke_data/gradio_cache/{csv_filename}"
+    with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as tmp_csv:
+        local_csv_path = tmp_csv.name
     client = storage.Client()
 
     blob = client.bucket(bucket).blob(gcs_path)
@@ -1321,7 +1323,9 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     blob.download_to_filename(local_csv_path)
     df = load_df(local_csv_path)
     wb = transform_to_wrkbook(df)
-    excel_path = local_csv_path.replace(".csv", ".xlsx")
+    #excel_path = local_csv_path.replace(".csv", ".xlsx")
+    with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp_excel:
+        excel_path = tmp_excel.name
     wb.save(excel_path)
     return excel_path
 
@@ -1970,6 +1974,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
