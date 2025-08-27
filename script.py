@@ -33,7 +33,7 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 #----------
-from eps_rev_changes import generate_daily_revisions_report
+from emailwthreshold import generate_daily_revisions_report
 
 # ──────────────────────────────────────────────────────────────────────────────
 # SECRETS
