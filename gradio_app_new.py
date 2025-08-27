@@ -40,6 +40,7 @@ import pandas as pd
 import gcsfs
 from datetime import datetime
 import re
+from gradio import File 
 
 @lru_cache
 def load_latest_market_cap_dict():
@@ -1478,7 +1479,15 @@ def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
     excel_path = generate_excel_from_comparison_csv(output_file)
     print("EXCEL FUNCTION AFTER CALLING")
     
-    return "Comparison and insights complete.", eps_plot, rev_plot, eps_movers_table, rev_movers_table, summary_text, excel_path
+    return (
+    "Comparison and insights complete.",
+    eps_plot,
+    rev_plot,
+    eps_movers_table,
+    rev_movers_table,
+    summary_text,
+    File(value=excel_path, label="📥 Download Excel Report")  
+)
 
 
 # Dates & Periods
@@ -1986,6 +1995,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
