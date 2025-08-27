@@ -1331,7 +1331,7 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp_excel:
         excel_path = tmp_excel.name
 
-    excel_path = os.path.join(files_dir, f"market_data_{timestamp}.xlsx")
+    excel_path = os.path.join(files_dir, f"{csv_filename}.xlsx")
     wb.save(excel_path)
 
     print(f"Excel file created at: {excel_path}")
@@ -1985,6 +1985,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
