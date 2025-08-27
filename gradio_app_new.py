@@ -1303,6 +1303,47 @@ def transform_to_wrkbook(df):
     return wb
 
 def generate_excel_from_comparison_csv(csv_filename: str) -> str:
+    bucket_name = "historical_data_evoke"
+    base_prefix = "market_data/revisions"
+    excel_filename = csv_filename.replace(".csv", ".xlsx")
+    gcs_csv_path = f"{base_prefix}/{csv_filename}"
+    gcs_excel_path = f"{base_prefix}/Excel Files/{excel_filename}"
+
+    credentials = get_sa_credentials_from_secret()
+    client = storage.Client(credentials=credentials)
+    bucket = client.bucket(bucket_name)
+
+    # Step 1: Download CSV to temp
+    local_csv_path = f"/tmp/{csv_filename}"
+    blob = bucket.blob(gcs_csv_path)
+    if not blob.exists():
+        raise FileNotFoundError(f"CSV file not found: {gcs_csv_path}")
+    blob.download_to_filename(local_csv_path)
+
+    # Step 2: Transform to Excel
+    df = load_df(local_csv_path)
+    wb = transform_to_wrkbook(df)
+
+    # Step 3: Save Excel to temp
+    local_excel_path = f"/tmp/{excel_filename}"
+    wb.save(local_excel_path)
+
+    # Step 4: Upload Excel to GCS
+    excel_blob = bucket.blob(gcs_excel_path)
+    excel_blob.upload_from_filename(local_excel_path)
+
+    # Step 5: Generate signed URL
+    url = excel_blob.generate_signed_url(
+        credentials=credentials,
+        version="v4",
+        expiration=timedelta(minutes=15),
+        method="GET"
+    )
+
+    # Step 6: Return signed HTML link
+    return f'<a href="{url}" target="_blank" download><button style="padding:10px;font-size:16px;">📥 Download Excel Report</button></a>'
+'''
+def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     import os
     from google.cloud import storage
     
@@ -1328,7 +1369,10 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     blob.download_to_filename(local_csv_path)
     df = load_df(local_csv_path)
     wb = transform_to_wrkbook(df)
-    #excel_path = local_csv_path.replace(".csv", ".xlsx")
+    excel_path = local_csv_path.replace(".csv", ".xlsx")
+    wb.save(excel_path)
+    
+    '''
     with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp_excel:
         excel_path = tmp_excel.name
 
@@ -1339,9 +1383,9 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     print(f"Excel file created at: {excel_path}")
     print(f"File exists: {os.path.exists(excel_path)}")
     print(f"File size: {os.path.getsize(excel_path) if os.path.exists(excel_path) else 'N/A'}")
-    
+    '''
     return excel_path
-
+'''
 ## ashwin changes end here for excel workbook
 
 def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
@@ -1481,6 +1525,7 @@ def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
     filename_only = os.path.basename(excel_path)
     download_url = f"/file={filename_only}"
     download_link_html = f'<a href="{download_url}" target="_blank" download><button style="padding: 10px; font-size: 16px;">📥 Download Excel Report</button></a>'
+    excel_html = generate_excel_from_comparison_csv(output_file)
     return (
     "Comparison and insights complete.",
     eps_plot,
@@ -1488,7 +1533,7 @@ def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
     eps_movers_table,
     rev_movers_table,
     summary_text,
-    excel_path  # This is gr.HTML
+    excel_html# This is gr.HTML
     )
 
 
@@ -1962,7 +2007,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         run_comparison_btn.click(
             fn=run_comparison,
             inputs=[from_date, to_date, period, month_dropdown,market_cap_dropdown],
-            outputs=[ status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box, excel_download]
+            outputs=[ status, eps_treemap_plot, rev_treemap_plot, eps_movers_table, rev_movers_table, summary_box, gr.HTML(label="Download Excel Report")]
         )
 # --- UI Layout ---
     with gr.Tab("Earnings Calendar"):
@@ -1997,6 +2042,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
