@@ -1342,50 +1342,7 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
 
     # Step 6: Return signed HTML link
     return f'<a href="{url}" target="_blank" download><button style="padding:10px;font-size:16px;">📥 Download Excel Report</button></a>'
-'''
-def generate_excel_from_comparison_csv(csv_filename: str) -> str:
-    import os
-    from google.cloud import storage
-    
-    print("INSIDE EXCEL FUNCTION")
-    bucket = "historical_data_evoke"
-    gcs_path = f"market_data/revisions/{csv_filename}"
-    project_dir = "/home/shared/evoke_prod/evoke"
-    files_dir = os.path.join(project_dir, "downloads")
-    os.makedirs(files_dir, exist_ok=True)
-    #local_csv_path = f"/tmp/{csv_filename}"
-    
-    #local_csv_path = f"/mnt/evoke_data/gradio_cache/{csv_filename}"
-    with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as tmp_csv:
-        local_csv_path = tmp_csv.name
-    client = storage.Client()
 
-    blob = client.bucket(bucket).blob(gcs_path)
-
-    if not blob.exists():
-        raise FileNotFoundError(f"GCS file not found: {gcs_path}")
-
-    # Download to local temp file
-    blob.download_to_filename(local_csv_path)
-    df = load_df(local_csv_path)
-    wb = transform_to_wrkbook(df)
-    excel_path = local_csv_path.replace(".csv", ".xlsx")
-    wb.save(excel_path)
-    
-    '''
-    with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp_excel:
-        excel_path = tmp_excel.name
-
-    excel_path = os.path.join(files_dir, f"{csv_filename}.xlsx")
-    #os.chmod(excel_path, 0o644)
-    wb.save(excel_path)
-    os.chmod(excel_path, 0o644)
-    print(f"Excel file created at: {excel_path}")
-    print(f"File exists: {os.path.exists(excel_path)}")
-    print(f"File size: {os.path.getsize(excel_path) if os.path.exists(excel_path) else 'N/A'}")
-    '''
-    return excel_path
-'''
 ## ashwin changes end here for excel workbook
 
 def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
@@ -2042,6 +1999,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
