@@ -1327,6 +1327,11 @@ def generate_excel_from_comparison_csv(csv_filename: str) -> str:
     with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp_excel:
         excel_path = tmp_excel.name
     wb.save(excel_path)
+
+    print(f"Excel file created at: {excel_path}")
+    print(f"File exists: {os.path.exists(excel_path)}")
+    print(f"File size: {os.path.getsize(excel_path) if os.path.exists(excel_path) else 'N/A'}")
+    
     return excel_path
 
 ## ashwin changes end here for excel workbook
@@ -1934,7 +1939,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
         to_date.change(fn=update_periods, inputs=[to_date], outputs=period)
 
-        excel_download = gr.File(label="Download Excel Workbook", interactive=False)
+        excel_download = gr.File(label="Download Excel Workbook", interactive=True, visible=True)
 
         run_comparison_btn.click(
             fn=run_comparison,
@@ -1974,6 +1979,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
