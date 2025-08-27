@@ -26,19 +26,28 @@ PROGRESS_LOG = Path("market_data/progress.log")
 
 from google.cloud import storage
 
+import re
+from google.cloud import storage
+
 def get_latest_daily_date() -> str:
     client = storage.Client()
-    blobs = client.list_blobs(
-        GCS_BUCKET,
-        prefix="market_data/daily/",
-        delimiter="/"
-    )
-    dates = [prefix.split("/")[2] for prefix in blobs.prefixes]
+    blobs = client.list_blobs(GCS_BUCKET, prefix="market_data/daily/")
 
-    if not dates:
+    latest_date = None
+    date_pattern = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+    for blob in blobs:
+        parts = blob.name.split("/")
+        if len(parts) > 2:
+            candidate = parts[2]
+            if date_pattern.fullmatch(candidate):
+                if (latest_date is None) or (candidate > latest_date):
+                    latest_date = candidate  # update latest date
+
+    if latest_date is None:
         return "No data available"
 
-    return sorted(dates, reverse=True)[0]  
+    return latest_date
 
 run_date = get_latest_daily_date()
 print(run_date)
