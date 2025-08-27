@@ -77,7 +77,7 @@ def generate_daily_revisions_report():
                 key=lambda p: datetime.strptime(os.path.basename(p.rstrip('/')), '%Y-%m-%d'),
                 reverse=True
             )
-            latest_folder_path, prev_folder_path = sorted_folders[0], sorted_folders[1]
+            latest_folder_path, prev_folder_path = sorted_folders[13], sorted_folders[15]
             latest_date_str = os.path.basename(latest_folder_path.rstrip('/'))
             prev_date_str = os.path.basename(prev_folder_path.rstrip('/'))
 
