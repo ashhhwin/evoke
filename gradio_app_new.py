@@ -1480,7 +1480,7 @@ def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
     print("EXCEL FUNCTION AFTER CALLING")
     filename_only = os.path.basename(excel_path)
     download_url = f"/file={filename_only}"
-    
+    download_link_html = f'<a href="{download_url}" target="_blank" download><button style="padding: 10px; font-size: 16px;">📥 Download Excel Report</button></a>'
     return (
     "Comparison and insights complete.",
     eps_plot,
@@ -1488,8 +1488,8 @@ def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
     eps_movers_table,
     rev_movers_table,
     summary_text,
-    File(value=download_url, label="📥 Download Excel Report")  
-)
+    download_link_html  # This is gr.HTML
+    )
 
 
 # Dates & Periods
@@ -1957,7 +1957,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
         to_date.change(fn=update_periods, inputs=[to_date], outputs=period)
 
-        excel_download = gr.File(label="Download Excel Workbook", interactive=True, visible=True)
+        gr.HTML(label="Download Excel Report")
 
         run_comparison_btn.click(
             fn=run_comparison,
@@ -1997,6 +1997,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
