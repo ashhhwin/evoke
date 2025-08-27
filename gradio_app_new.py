@@ -42,6 +42,18 @@ from datetime import datetime
 import re
 from gradio import File 
 
+def get_sa_credentials_from_secret(secret_id="JSON-SECRET", project_id="tonal-nucleus-464617-n2"):
+    client = secretmanager.SecretManagerServiceClient()
+    name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
+    response = client.access_secret_version(request={"name": name})
+    sa_key_data = response.payload.data.decode("UTF-8")
+
+    # Load service account credentials from JSON string
+    service_account_info = json.loads(sa_key_data)
+
+    credentials = service_account.Credentials.from_service_account_info(service_account_info)
+    return credentials
+    
 @lru_cache
 def load_latest_market_cap_dict():
     fs = gcsfs.GCSFileSystem()
@@ -1999,6 +2011,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
