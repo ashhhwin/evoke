@@ -78,7 +78,7 @@ def generate_daily_revisions_report():
                 reverse=True
             )
             # FIX: pick immediate previous folder (index 1), not index 3
-            latest_folder_path, prev_folder_path = sorted_folders[0], sorted_folders[3]
+            latest_folder_path, prev_folder_path = sorted_folders[0], sorted_folders[22]
             latest_date_str = os.path.basename(latest_folder_path.rstrip('/'))
             prev_date_str = os.path.basename(prev_folder_path.rstrip('/'))
 
