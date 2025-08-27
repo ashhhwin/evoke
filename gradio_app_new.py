@@ -1478,6 +1478,8 @@ def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
     print("EXCEL FUNCTION BEFORE CALLING")
     excel_path = generate_excel_from_comparison_csv(output_file)
     print("EXCEL FUNCTION AFTER CALLING")
+    filename_only = os.path.basename(excel_path)
+    download_url = f"/file={filename_only}"
     
     return (
     "Comparison and insights complete.",
@@ -1486,7 +1488,7 @@ def run_comparison(from_date, to_date, period,month=None, selected_caps=None):
     eps_movers_table,
     rev_movers_table,
     summary_text,
-    File(value=excel_path, label="📥 Download Excel Report")  
+    File(value=download_url, label="📥 Download Excel Report")  
 )
 
 
@@ -1995,6 +1997,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
