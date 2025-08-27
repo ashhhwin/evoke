@@ -1957,7 +1957,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
         to_date.change(fn=update_periods, inputs=[to_date], outputs=period)
 
-        gr.HTML(label="Download Excel Report")
+        excel_download = gr.HTML(label="Download Excel Report")
 
         run_comparison_btn.click(
             fn=run_comparison,
@@ -1997,6 +1997,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
