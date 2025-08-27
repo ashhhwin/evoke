@@ -151,11 +151,11 @@ def generate_daily_revisions_report():
     # USD binning with Nano
     def get_market_cap_bin(mc_dollars):
         if pd.isna(mc_dollars): return "N/A"
-        if mc_dollars >= 200e9: return "Mega Cap"
-        if mc_dollars >= 10e9:  return "Large Cap"
-        if mc_dollars >= 2e9:   return "Mid Cap"
-        if mc_dollars >= 300e6: return "Small Cap"
-        if mc_dollars >= 50e6:  return "Micro Cap"
+        if mc_dollars >= 200e3: return "Mega Cap"
+        if mc_dollars >= 10e3:  return "Large Cap"
+        if mc_dollars >= 2e3:   return "Mid Cap"
+        if mc_dollars >= 300: return "Small Cap"
+        if mc_dollars >= 50:  return "Micro Cap"
         return "Nano Cap"
 
     # ----- Merge/diff helper -----
@@ -295,7 +295,7 @@ def generate_daily_revisions_report():
     eps_changes.rename(columns={'eps_old': 'old_value', 'eps_new': 'new_value'}, inplace=True)
     rev_changes.rename(columns={'revenue_old': 'old_value', 'revenue_new': 'new_value'}, inplace=True)
 
-    report_df = pd.merge(report_df, market_cap_df, on='ticker', how='left')
+    report_df = pd.merge(report_df, market_cap_df, on='ticker', how='inner')
     if report_df.empty:
         print("[INFO] No revisions. Skipping report and email.")
         return
