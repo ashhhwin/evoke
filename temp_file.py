@@ -24,13 +24,21 @@ GCS_BUCKET = "historical_data_evoke"
 
 PROGRESS_LOG = Path("market_data/progress.log")
 
+from google.cloud import storage
+
 def get_latest_daily_date() -> str:
     client = storage.Client()
-    blobs = client.list_blobs(GCS_BUCKET, prefix="market_data/daily/", delimiter="/")
-    dates = sorted({blob.name.split("/")[2] for blob in blobs if len(blob.name.split("/")) > 2}, reverse=True)
+    blobs = client.list_blobs(
+        GCS_BUCKET,
+        prefix="market_data/daily/",
+        delimiter="/"
+    )
+    dates = [prefix.split("/")[2] for prefix in blobs.prefixes]
+
     if not dates:
         return "No data available"
-    return dates
+
+    return sorted(dates, reverse=True)[0]  
 
 run_date = get_latest_daily_date()
 print(run_date)
