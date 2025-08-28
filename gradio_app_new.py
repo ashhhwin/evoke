@@ -53,12 +53,14 @@ fs = gcsfs.GCSFileSystem()
 def list_available_reports():
     files = fs.ls(f"gs://{OPTION_BUCKET_NAME}/{OPTION_REPORT_PREFIX}")
     reports = [f for f in files if f.endswith(".html") and "anomaly_report_" in f]
+
     date_to_blob = {}
     for r in reports:
         match = re.search(r"anomaly_report_(\d{2}-\d{2}-\d{4})\.html", r)
         if match:
             date_str = match.group(1)
-            blob_name = r.split(f"{OPTION_bucket}/",1)[1]  # strip "bucket/"
+            # Strip off the "gs://bucket_name/" part
+            blob_name = r.replace(f"gs://{OPTION_BUCKET_NAME}/", "")
             date_to_blob[date_str] = blob_name
     return dict(sorted(date_to_blob.items()))
 
@@ -67,7 +69,7 @@ def refresh_dropdown():
 
 def generate_signed_url(blob_name, expiration_minutes=60):
     """Generate a signed URL for private GCS object."""
-    blob = bucket.blob(blob_name)
+    blob = OPTION_bucket.blob(blob_name)
     url = blob.generate_signed_url(
         version="v4",
         expiration=datetime.timedelta(minutes=expiration_minutes),
@@ -95,7 +97,7 @@ def get_report_iframe(date_str):
     signed_url = generate_signed_url(blob_name)
 
     # Embed full standalone report in iframe
-    return f"""<iframe src="{signed_url}" width="100%" height="900px" style="border:none;"></iframe>"""
+    return f"<iframe src='{signed_url}' width='100%' height='900px' style='border:none;'></iframe>"
 
 def get_sa_credentials_from_secret(secret_id="JSON-SECRET", project_id="tonal-nucleus-464617-n2"):
     client = secretmanager.SecretManagerServiceClient()
@@ -2093,6 +2095,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
