@@ -44,25 +44,36 @@ from datetime import datetime
 import re
 from gradio import File 
 
-OPTIONS_GCS_BUCKET_PATH = "gs://options_daily_data/Anomaly_Reports/"
+OPTION_BUCKET_NAME = "options_daily_data"
+OPTION_REPORT_PREFIX = "Anomaly_Reports/"
+OPTION_storage_client = storage.Client()
+OPTION_bucket = storage_client.bucket(BUCKET_NAME)
 fs = gcsfs.GCSFileSystem()
 
 def list_available_reports():
-    """List available reports in bucket and return a dict {date_str: full_path}."""
-    files = fs.ls(OPTIONS_GCS_BUCKET_PATH)
+    files = fs.ls(f"gs://{OPTION_BUCKET_NAME}/{OPTION_REPORT_PREFIX}")
     reports = [f for f in files if f.endswith(".html") and "anomaly_report_" in f]
-    
-    date_to_path = {}
+    date_to_blob = {}
     for r in reports:
         match = re.search(r"anomaly_report_(\d{2}-\d{2}-\d{4})\.html", r)
         if match:
-            date_str = match.group(1)  # dd-mm-yyyy
-            date_to_path[date_str] = r
-    return dict(sorted(date_to_path.items()))
+            date_str = match.group(1)
+            blob_name = r.split(f"{BUCKET_NAME}/",1)[1]  # strip "bucket/"
+            date_to_blob[date_str] = blob_name
+    return dict(sorted(date_to_blob.items()))
 
 def refresh_dropdown():
-    """Return sorted list of available dates for the dropdown."""
     return list(list_available_reports().keys())
+
+def generate_signed_url(blob_name, expiration_minutes=60):
+    """Generate a signed URL for private GCS object."""
+    blob = bucket.blob(blob_name)
+    url = blob.generate_signed_url(
+        version="v4",
+        expiration=datetime.timedelta(minutes=expiration_minutes),
+        method="GET"
+    )
+    return url
 
 def load_report(date_str):
     """Load HTML report for the given date string."""
@@ -74,6 +85,17 @@ def load_report(date_str):
     with fs.open(path, "r") as f:
         html_content = f.read()
     return html_content
+
+def get_report_iframe(date_str):
+    mapping = list_available_reports()
+    if date_str not in mapping:
+        return f"<h3 style='color:red'>No report found for {date_str}</h3>"
+
+    blob_name = mapping[date_str]
+    signed_url = generate_signed_url(blob_name)
+
+    # Embed full standalone report in iframe
+    return f"""<iframe src="{signed_url}" width="100%" height="900px" style="border:none;"></iframe>"""
 
 def get_sa_credentials_from_secret(secret_id="JSON-SECRET", project_id="tonal-nucleus-464617-n2"):
     client = secretmanager.SecretManagerServiceClient()
@@ -2043,9 +2065,10 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 
+    # ---------------- TAB ----------------
     with gr.Tab("Anomaly Reports"):
         gr.Markdown("### 📊 Anomaly Reports Viewer")
-        
+    
         with gr.Row():
             report_dropdown = gr.Dropdown(
                 label="Select Report Date",
@@ -2053,27 +2076,24 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                 interactive=True
             )
             refresh_btn = gr.Button("🔄 Refresh List")
-        
+    
         view_btn = gr.Button("📑 View Report")
         report_display = gr.HTML(label="Report Viewer")
     
-        # Refresh list when clicking refresh
         refresh_btn.click(
             fn=refresh_dropdown,
             inputs=None,
             outputs=report_dropdown
         )
     
-        # Load report when clicking view
         view_btn.click(
-            fn=load_report,
+            fn=get_report_iframe,
             inputs=[report_dropdown],
             outputs=[report_display]
         )
 
-
-
 app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
