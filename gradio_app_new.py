@@ -2110,38 +2110,59 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
     # ---------------- TAB ----------------
-    with gr.Tab("Anomaly Reports"):
-        gr.Markdown("### Anomaly Reports Viewer")
-    
-        with gr.Row():
-            # Dropdown column
-            with gr.Column(scale=2):
-                report_dropdown = gr.Dropdown(
-                    label="Select Report Date",
-                    choices=refresh_dropdown(),
-                    multiselect=False,
-                    interactive=True
-                )
-    
-            # Buttons column
-            with gr.Column(scale=1):
-                refresh_btn = gr.Button("Refresh List")
-                open_btn_display = gr.HTML()  # no scale here
-    
-        # Actions
-        refresh_btn.click(
-            fn=refresh_dropdown,
-            inputs=None,
-            outputs=report_dropdown
-        )
-    
-        report_dropdown.change(
-            fn=open_report_new_tab,
-            inputs=report_dropdown,
-            outputs=open_btn_display
-        )
+   with gr.Tab("Anomaly Reports"):
+    gr.Markdown("### Anomaly Reports Viewer")
+
+    with gr.Row():
+        # Dropdown column
+        with gr.Column(scale=2):
+            report_dropdown = gr.Dropdown(
+                label="Select Report Date",
+                choices=refresh_dropdown(),
+                multiselect=False,  # ensure single selection
+                interactive=True,
+            )
+
+        # Buttons column
+        with gr.Column(scale=1):
+            refresh_btn = gr.Button("Refresh List")
+            open_btn_display = gr.HTML()  # will render the Open Report button
+
+    # Refresh dropdown choices without breaking value
+    def refresh_dropdown_gradio():
+        new_choices = refresh_dropdown()
+        return gr.Dropdown.update(choices=new_choices)
+
+    refresh_btn.click(
+        fn=refresh_dropdown_gradio,
+        inputs=None,
+        outputs=report_dropdown
+    )
+
+    # Open report button
+    def open_report_new_tab(date_str, expiration_minutes=60):
+        if isinstance(date_str, list):
+            date_str = date_str[0]  # pick first element just in case
+
+        mapping = list_available_reports()
+        if date_str not in mapping:
+            return f"<h3 style='color:red'>No report found for {date_str}</h3>"
+
+        blob_name = mapping[date_str]
+        signed_url = generate_signed_url(blob_name, expiration_minutes=expiration_minutes)
+
+        html = f'<a href="{signed_url}" target="_blank" style="font-size:16px; padding:8px 12px; background-color:#4CAF50; color:white; text-decoration:none; border-radius:4px;">Open Report</a>'
+        return html
+
+    # Update Open Report button whenever dropdown changes
+    report_dropdown.change(
+        fn=open_report_new_tab,
+        inputs=report_dropdown,
+        outputs=open_btn_display
+    )
 
 app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
