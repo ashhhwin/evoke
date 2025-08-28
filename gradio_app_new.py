@@ -46,8 +46,6 @@ from gradio import File
 
 OPTION_BUCKET_NAME = "options_daily_data"
 OPTION_REPORT_PREFIX = "Anomaly_Reports/"
-OPTION_storage_client = storage.Client()
-OPTION_bucket = OPTION_storage_client.bucket(OPTION_BUCKET_NAME)
 fs = gcsfs.GCSFileSystem()
 
 def list_available_reports():
@@ -59,7 +57,6 @@ def list_available_reports():
         match = re.search(r"anomaly_report_(\d{2}-\d{2}-\d{4})\.html", r)
         if match:
             date_str = match.group(1)
-            # Strip off the "gs://bucket_name/" part
             blob_name = r.replace(f"gs://{OPTION_BUCKET_NAME}/", "")
             date_to_blob[date_str] = blob_name
     return dict(sorted(date_to_blob.items()))
@@ -67,9 +64,24 @@ def list_available_reports():
 def refresh_dropdown():
     return list(list_available_reports().keys())
 
-def generate_signed_url(blob_name, expiration_minutes=60):
-    from datetime import timedelta
-    blob = OPTION_bucket.blob(blob_name)
+def generate_signed_url(blob_name, expiration_minutes=60, bucket_name=OPTION_BUCKET_NAME):
+    # Fetch SA JSON from Secret Manager
+    client_sm = secretmanager.SecretManagerServiceClient()
+    secret_path = "projects/555005178535/secrets/JSON-SECRET/versions/latest"
+    response = client_sm.access_secret_version(request={"name": secret_path})
+    sa_json = response.payload.data.decode("UTF-8")
+    sa_info = json.loads(sa_json)
+
+    # Create credentials with private key
+    credentials = service_account.Credentials.from_service_account_info(sa_info)
+    project_id = sa_info.get("project_id")
+
+    # Create a Storage client using these credentials
+    storage_client = storage.Client(credentials=credentials, project=project_id)
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(blob_name)
+
+    # Generate signed URL
     url = blob.generate_signed_url(
         version="v4",
         expiration=timedelta(minutes=expiration_minutes),
@@ -78,7 +90,6 @@ def generate_signed_url(blob_name, expiration_minutes=60):
     return url
 
 def load_report(date_str):
-    """Load HTML report for the given date string."""
     mapping = list_available_reports()
     if date_str not in mapping:
         return f"<h3 style='color:red'>No report found for {date_str}</h3>"
@@ -96,32 +107,8 @@ def get_report_iframe(date_str):
     blob_name = mapping[date_str]
     signed_url = generate_signed_url(blob_name)
 
-    # Embed full standalone report in iframe
+    # Embed report in iframe
     return f"<iframe src='{signed_url}' width='100%' height='900px' style='border:none;'></iframe>"
-
-def generate_signed_url(blob_name, expiration_minutes=60, bucket_name="options_daily_data"):
-    # Fetch SA JSON from Secret Manager
-    client_sm = secretmanager.SecretManagerServiceClient()
-    secret_path = "projects/555005178535/secrets/JSON-SECRET/versions/latest"
-    response = client_sm.access_secret_version(request={"name": secret_path})
-    sa_json = response.payload.data.decode("UTF-8")
-    sa_info = json.loads(sa_json)
-
-    # Create credentials with private key
-    credentials = service_account.Credentials.from_service_account_info(sa_info)
-
-    # Create a Storage client using these credentials
-    storage_client = storage.Client(credentials=credentials, project=credentials.get("project_id"))
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(blob_name)
-
-    # Generate signed URL
-    url = blob.generate_signed_url(
-        version="v4",
-        expiration=timedelta(minutes=expiration_minutes),
-        method="GET"
-    )
-    return url
     
 @lru_cache
 def load_latest_market_cap_dict():
@@ -2107,5 +2094,6 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
