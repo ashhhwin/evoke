@@ -2114,22 +2114,18 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         gr.Markdown("### Anomaly Reports Viewer")
     
         with gr.Row():
-            # Report date dropdown
-            report_dropdown = gr.Dropdown(
-                label="Select Report Date",
-                choices=refresh_dropdown(),
-                interactive=True,
-                scale=2
-            )
-            
-            # Refresh list button
-            refresh_btn = gr.Button(
-                "Refresh List",
-                scale=1
-            )
+            # Dropdown column
+            with gr.Column(scale=2):
+                report_dropdown = gr.Dropdown(
+                    label="Select Report Date",
+                    choices=refresh_dropdown(),
+                    interactive=True,
+                )
     
-            # Open report button
-            open_btn_display = gr.HTML(scale=1)
+            # Buttons column
+            with gr.Column(scale=1):
+                refresh_btn = gr.Button("Refresh List")
+                open_btn_display = gr.HTML()  # no scale here
     
         # Actions
         refresh_btn.click(
@@ -2145,6 +2141,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
