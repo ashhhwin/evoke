@@ -47,7 +47,7 @@ from gradio import File
 OPTION_BUCKET_NAME = "options_daily_data"
 OPTION_REPORT_PREFIX = "Anomaly_Reports/"
 OPTION_storage_client = storage.Client()
-OPTION_bucket = storage_client.bucket(BUCKET_NAME)
+OPTION_bucket = OPTION_storage_client.bucket(OPTION_BUCKET_NAME)
 fs = gcsfs.GCSFileSystem()
 
 def list_available_reports():
@@ -2093,6 +2093,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
