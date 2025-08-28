@@ -58,7 +58,7 @@ def list_available_reports():
         match = re.search(r"anomaly_report_(\d{2}-\d{2}-\d{4})\.html", r)
         if match:
             date_str = match.group(1)
-            blob_name = r.split(f"{BUCKET_NAME}/",1)[1]  # strip "bucket/"
+            blob_name = r.split(f"{OPTION_bucket}/",1)[1]  # strip "bucket/"
             date_to_blob[date_str] = blob_name
     return dict(sorted(date_to_blob.items()))
 
@@ -2093,6 +2093,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
