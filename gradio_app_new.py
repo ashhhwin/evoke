@@ -49,6 +49,10 @@ OPTION_REPORT_PREFIX = "Anomaly_Reports/"
 fs = gcsfs.GCSFileSystem()
 
 def list_available_reports():
+    """
+    List all HTML anomaly reports in the bucket.
+    Returns a dict: { "16-07-2025": "Anomaly_Reports/anomaly_report_16-07-2025.html", ... }
+    """
     files = fs.ls(f"gs://{OPTION_BUCKET_NAME}/{OPTION_REPORT_PREFIX}")
     reports = [f for f in files if f.endswith(".html") and "anomaly_report_" in f]
 
@@ -57,31 +61,36 @@ def list_available_reports():
         match = re.search(r"anomaly_report_(\d{2}-\d{2}-\d{4})\.html", r)
         if match:
             date_str = match.group(1)
-            blob_name = r.replace(f"gs://{OPTION_BUCKET_NAME}/", "")
+            # Remove bucket prefix safely
+            blob_name = r.split(f"{OPTION_BUCKET_NAME}/")[-1]
             date_to_blob[date_str] = blob_name
     return dict(sorted(date_to_blob.items()))
 
 def refresh_dropdown():
+    """Return sorted list of available report dates."""
     return list(list_available_reports().keys())
 
 def generate_signed_url(blob_name, expiration_minutes=60, bucket_name=OPTION_BUCKET_NAME):
-    # Fetch SA JSON from Secret Manager
+    """
+    Generate a signed URL for a given blob using a service account stored in Secret Manager.
+    """
+    # 1. Fetch service account JSON from Secret Manager
     client_sm = secretmanager.SecretManagerServiceClient()
     secret_path = "projects/555005178535/secrets/JSON-SECRET/versions/latest"
     response = client_sm.access_secret_version(request={"name": secret_path})
     sa_json = response.payload.data.decode("UTF-8")
     sa_info = json.loads(sa_json)
 
-    # Create credentials with private key
+    # 2. Create credentials with private key
     credentials = service_account.Credentials.from_service_account_info(sa_info)
     project_id = sa_info.get("project_id")
 
-    # Create a Storage client using these credentials
+    # 3. Create Storage client
     storage_client = storage.Client(credentials=credentials, project=project_id)
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(blob_name)
 
-    # Generate signed URL
+    # 4. Generate signed URL (v4)
     url = blob.generate_signed_url(
         version="v4",
         expiration=timedelta(minutes=expiration_minutes),
@@ -90,24 +99,31 @@ def generate_signed_url(blob_name, expiration_minutes=60, bucket_name=OPTION_BUC
     return url
 
 def load_report(date_str):
+    """
+    Load HTML report content for a given date (without using signed URLs).
+    Only works if GCSFileSystem access is available.
+    """
     mapping = list_available_reports()
     if date_str not in mapping:
         return f"<h3 style='color:red'>No report found for {date_str}</h3>"
     
     path = mapping[date_str]
-    with fs.open(path, "r") as f:
+    with fs.open(f"gs://{OPTION_BUCKET_NAME}/{path}", "r") as f:
         html_content = f.read()
     return html_content
 
-def get_report_iframe(date_str):
+def get_report_iframe(date_str, expiration_minutes=60):
+    """
+    Return an iframe embedding the signed URL of the report.
+    """
     mapping = list_available_reports()
     if date_str not in mapping:
         return f"<h3 style='color:red'>No report found for {date_str}</h3>"
 
     blob_name = mapping[date_str]
-    signed_url = generate_signed_url(blob_name)
+    signed_url = generate_signed_url(blob_name, expiration_minutes=expiration_minutes)
 
-    # Embed report in iframe
+    # Embed full standalone report in iframe
     return f"<iframe src='{signed_url}' width='100%' height='900px' style='border:none;'></iframe>"
     
 @lru_cache
@@ -2094,6 +2110,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
