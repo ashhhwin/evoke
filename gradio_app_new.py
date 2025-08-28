@@ -99,17 +99,29 @@ def get_report_iframe(date_str):
     # Embed full standalone report in iframe
     return f"<iframe src='{signed_url}' width='100%' height='900px' style='border:none;'></iframe>"
 
-def get_sa_credentials_from_secret(secret_id="JSON-SECRET", project_id="tonal-nucleus-464617-n2"):
-    client = secretmanager.SecretManagerServiceClient()
-    name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
-    response = client.access_secret_version(request={"name": name})
-    sa_key_data = response.payload.data.decode("UTF-8")
+def generate_signed_url(blob_name, expiration_minutes=60, bucket_name="options_daily_data"):
+    # Fetch SA JSON from Secret Manager
+    client_sm = secretmanager.SecretManagerServiceClient()
+    secret_path = "projects/555005178535/secrets/JSON-SECRET/versions/latest"
+    response = client_sm.access_secret_version(request={"name": secret_path})
+    sa_json = response.payload.data.decode("UTF-8")
+    sa_info = json.loads(sa_json)
 
-    # Load service account credentials from JSON string
-    service_account_info = json.loads(sa_key_data)
+    # Create credentials with private key
+    credentials = service_account.Credentials.from_service_account_info(sa_info)
 
-    credentials = service_account.Credentials.from_service_account_info(service_account_info)
-    return credentials
+    # Create a Storage client using these credentials
+    storage_client = storage.Client(credentials=credentials, project=credentials.get("project_id"))
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(blob_name)
+
+    # Generate signed URL
+    url = blob.generate_signed_url(
+        version="v4",
+        expiration=timedelta(minutes=expiration_minutes),
+        method="GET"
+    )
+    return url
     
 @lru_cache
 def load_latest_market_cap_dict():
@@ -2095,4 +2107,5 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
