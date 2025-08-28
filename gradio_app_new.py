@@ -68,11 +68,11 @@ def refresh_dropdown():
     return list(list_available_reports().keys())
 
 def generate_signed_url(blob_name, expiration_minutes=60):
-    """Generate a signed URL for private GCS object."""
+    from datetime import timedelta
     blob = OPTION_bucket.blob(blob_name)
     url = blob.generate_signed_url(
         version="v4",
-        expiration=datetime.timedelta(minutes=expiration_minutes),
+        expiration=timedelta(minutes=expiration_minutes),
         method="GET"
     )
     return url
@@ -2095,6 +2095,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
