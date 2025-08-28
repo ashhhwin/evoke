@@ -74,9 +74,9 @@ def list_available_reports():
             date_to_blob[date_str] = blob_name
     return dict(sorted(date_to_blob.items()))
 
-def refresh_dropdown():
-    """Return sorted list of available report dates."""
-    return list(list_available_reports().keys())
+def refresh_dropdown_gradio():
+    new_choices = list(list_available_reports().keys())
+    return gr.Dropdown.update(choices=new_choices)
 
 def get_report_widget(date_str, expiration_minutes=60):
     mapping = list_available_reports()
@@ -2139,6 +2139,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
