@@ -2119,7 +2119,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
                 report_dropdown = gr.Dropdown(
                     label="Select Report Date",
                     choices=refresh_dropdown(),
-                    interactive=True,
+                    multiselect=False,
+                    interactive=True
                 )
     
             # Buttons column
@@ -2141,6 +2142,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
