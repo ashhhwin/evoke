@@ -44,6 +44,37 @@ from datetime import datetime
 import re
 from gradio import File 
 
+OPTIONS_GCS_BUCKET_PATH = "gs://options_daily_data/Anomaly_Reports/"
+fs = gcsfs.GCSFileSystem()
+
+def list_available_reports():
+    """List available reports in bucket and return a dict {date_str: full_path}."""
+    files = fs.ls(OPTIONS_GCS_BUCKET_PATH)
+    reports = [f for f in files if f.endswith(".html") and "anomaly_report_" in f]
+    
+    date_to_path = {}
+    for r in reports:
+        match = re.search(r"anomaly_report_(\d{2}-\d{2}-\d{4})\.html", r)
+        if match:
+            date_str = match.group(1)  # dd-mm-yyyy
+            date_to_path[date_str] = r
+    return dict(sorted(date_to_path.items()))
+
+def refresh_dropdown():
+    """Return sorted list of available dates for the dropdown."""
+    return list(list_available_reports().keys())
+
+def load_report(date_str):
+    """Load HTML report for the given date string."""
+    mapping = list_available_reports()
+    if date_str not in mapping:
+        return f"<h3 style='color:red'>No report found for {date_str}</h3>"
+    
+    path = mapping[date_str]
+    with fs.open(path, "r") as f:
+        html_content = f.read()
+    return html_content
+
 def get_sa_credentials_from_secret(secret_id="JSON-SECRET", project_id="tonal-nucleus-464617-n2"):
     client = secretmanager.SecretManagerServiceClient()
     name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
@@ -2012,7 +2043,38 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=[status_box, calendar_output]
         )
 
-#app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+    with gr.Tab("Anomaly Reports"):
+        gr.Markdown("### 📊 Anomaly Reports Viewer")
+        
+        with gr.Row():
+            report_dropdown = gr.Dropdown(
+                label="Select Report Date",
+                choices=refresh_dropdown(),
+                interactive=True
+            )
+            refresh_btn = gr.Button("🔄 Refresh List")
+        
+        view_btn = gr.Button("📑 View Report")
+        report_display = gr.HTML(label="Report Viewer")
+    
+        # Refresh list when clicking refresh
+        refresh_btn.click(
+            fn=refresh_dropdown,
+            inputs=None,
+            outputs=report_dropdown
+        )
+    
+        # Load report when clicking view
+        view_btn.click(
+            fn=load_report,
+            inputs=[report_dropdown],
+            outputs=[report_display]
+        )
+
+
+
+app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
