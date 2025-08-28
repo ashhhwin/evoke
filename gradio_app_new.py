@@ -48,6 +48,18 @@ OPTION_BUCKET_NAME = "options_daily_data"
 OPTION_REPORT_PREFIX = "Anomaly_Reports/"
 fs = gcsfs.GCSFileSystem()
 
+def open_report_new_tab(date_str, expiration_minutes=60):
+    mapping = list_available_reports()
+    if date_str not in mapping:
+        return f"<h3 style='color:red'>No report found for {date_str}</h3>"
+    
+    blob_name = mapping[date_str]
+    signed_url = generate_signed_url(blob_name, expiration_minutes=expiration_minutes)
+
+    # Button to open report in a new tab
+    html = f'<a href="{signed_url}" target="_blank" style="font-size:16px; padding:8px 12px; background-color:#4CAF50; color:white; text-decoration:none; border-radius:4px;">Open Report</a>'
+    return html
+    
 def list_available_reports():
     """
     List all HTML anomaly reports in the bucket.
@@ -2109,24 +2121,22 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             )
             refresh_btn = gr.Button("🔄 Refresh List")
     
-        view_btn = gr.Button("📑 View Report")
-        report_display = gr.HTML(label="Report Viewer")
+        open_btn_display = gr.HTML()
     
-        # Refresh dropdown list
         refresh_btn.click(
             fn=refresh_dropdown,
             inputs=None,
             outputs=report_dropdown
         )
     
-        # View report with full-size iframe + download link
-        view_btn.click(
-            fn=get_report_widget,  # Use the new combined widget function
-            inputs=[report_dropdown],
-            outputs=[report_display]
+        report_dropdown.change(
+            fn=open_report_new_tab,
+            inputs=report_dropdown,
+            outputs=open_btn_display
         )
 
 app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
