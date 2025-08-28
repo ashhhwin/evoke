@@ -70,6 +70,21 @@ def refresh_dropdown():
     """Return sorted list of available report dates."""
     return list(list_available_reports().keys())
 
+def get_report_widget(date_str, expiration_minutes=60):
+    mapping = list_available_reports()
+    if date_str not in mapping:
+        return f"<h3 style='color:red'>No report found for {date_str}</h3>", None
+
+    blob_name = mapping[date_str]
+    signed_url = generate_signed_url(blob_name, expiration_minutes=expiration_minutes)
+
+    iframe_html = f'<iframe src="{signed_url}" style="width:100%; height:80vh; border:none;" allowfullscreen></iframe>'
+
+    download_html = f'<a href="{signed_url}" download="{blob_name.split("/")[-1]}" style="font-size:16px; margin-top:10px; display:block;">Download Report</a>'
+
+    combined_html = iframe_html + download_html
+    return combined_html
+
 def generate_signed_url(blob_name, expiration_minutes=60, bucket_name=OPTION_BUCKET_NAME):
     """
     Generate a signed URL for a given blob using a service account stored in Secret Manager.
@@ -2084,32 +2099,35 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
 
     # ---------------- TAB ----------------
     with gr.Tab("Anomaly Reports"):
-        gr.Markdown("### 📊 Anomaly Reports Viewer")
+        gr.Markdown("### Anomaly Reports Viewer")
     
         with gr.Row():
             report_dropdown = gr.Dropdown(
                 label="Select Report Date",
                 choices=refresh_dropdown(),
-                interactive=True
+                interactive=True,
             )
             refresh_btn = gr.Button("🔄 Refresh List")
     
         view_btn = gr.Button("📑 View Report")
         report_display = gr.HTML(label="Report Viewer")
     
+        # Refresh dropdown list
         refresh_btn.click(
             fn=refresh_dropdown,
             inputs=None,
             outputs=report_dropdown
         )
     
+        # View report with full-size iframe + download link
         view_btn.click(
-            fn=get_report_iframe,
+            fn=get_report_widget,  # Use the new combined widget function
             inputs=[report_dropdown],
             outputs=[report_display]
         )
 
 app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
