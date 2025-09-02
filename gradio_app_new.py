@@ -72,7 +72,11 @@ def list_available_reports():
             date_str = match.group(1)
             blob_name = r.split(f"{OPTION_BUCKET_NAME}/")[-1]
             date_to_blob[date_str] = blob_name
-    return dict(sorted(date_to_blob.items()))
+    return dict(sorted(
+        date_to_blob.items(),
+        key=lambda x: datetime.strptime(x[0], "%m-%d-%Y"),
+        reverse=True
+    ))
 
 def refresh_dropdown_gradio():
     new_choices = list(list_available_reports().keys())
@@ -2139,6 +2143,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
