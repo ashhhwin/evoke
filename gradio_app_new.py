@@ -48,7 +48,18 @@ OPTION_BUCKET_NAME = "options_daily_data"
 OPTION_REPORT_PREFIX = "Anomaly_Reports/"
 fs = gcsfs.GCSFileSystem()
 
+def get_sa_credentials_from_secret(secret_id="JSON-SECRET", project_id="tonal-nucleus-464617-n2"):
+    client = secretmanager.SecretManagerServiceClient()
+    name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
+    response = client.access_secret_version(request={"name": name})
+    sa_key_data = response.payload.data.decode("UTF-8")
 
+    # Load service account credentials from JSON string
+    service_account_info = json.loads(sa_key_data)
+
+    credentials = service_account.Credentials.from_service_account_info(service_account_info)
+    return credentials
+    
 def open_report_new_tab(date_str, expiration_minutes=60):
     mapping = list_available_reports()
     if date_str not in mapping:
@@ -2143,6 +2154,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
