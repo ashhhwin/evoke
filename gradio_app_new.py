@@ -62,7 +62,7 @@ def open_report_new_tab(date_str, expiration_minutes=60):
     return html
     
 def list_available_reports():
-    files = fs.ls(f"gs://{OPTION_BUCKET_NAME}/{OPTION_REPORT_PREFIX}")
+    files = fs.ls(f"gs://{OPTION_BUCKET_NAME}/{OPTION_REPORT_PREFIX}", refresh=True)
     reports = [f for f in files if f.endswith(".html") and "anomaly_report_" in f]
 
     date_to_blob = {}
@@ -2138,7 +2138,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
             outputs=open_btn_display
         )
 
-app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+#app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
