@@ -74,8 +74,8 @@ def list_available_reports():
             date_to_blob[date_str] = blob_name
     return dict(sorted(
         date_to_blob.items(),
-        key=lambda x: datetime.strptime(x[0], "%m-%d-%Y"),
-        reverse=True
+        key=lambda x: datetime.strptime(x[0], "%d-%m-%Y"),
+        reverse=True  # newest first
     ))
 
 def refresh_dropdown_gradio():
@@ -2143,6 +2143,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as app:
         )
 
 #app.launch(server_name="0.0.0.0", server_port=7888, debug=True)
+
 
 
 
