@@ -100,7 +100,7 @@ def proxy_gradio_file(filename):
         return send_file(full_path, as_attachment=True)
     else:
         return f"File not found: {filename}", 404
-        
+'''        
 # Launch Gradio on 127.0.0.1:7869 in the background
 def run_gradio():
     gradio_app.launch(server_name="127.0.0.1", server_port=7869, show_error=True, share=False, debug=True)
@@ -108,3 +108,4 @@ def run_gradio():
 # Start Gradio in background when Flask loads
 threading.Thread(target=run_gradio, daemon=True).start()
 
+'''
