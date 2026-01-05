@@ -98,6 +98,7 @@ def upload_dataframe_to_gcs(df: pd.DataFrame, blob_path: str):
     bucket = client.bucket(BUCKET_NAME)
     blob = bucket.blob(blob_path)
     buffer = io.StringIO()
+    #df.to_csv(buffer, index=False, encoding="utf-8-sig", line_terminator="\r\n")
     df.to_csv(buffer, index=False)
     blob.upload_from_string(buffer.getvalue(), content_type="text/csv")
 
@@ -523,6 +524,9 @@ def run_finnhub_data_pipeline(tickers: List[str]):
         if "revenue" in out_name:
             num_cols = [col for col in final.columns if col not in ["ticker", "api_run_date"]]
             final[num_cols] = final[num_cols].astype(float) / 1e6
+        if "eps" in out_name:
+            num_cols = [col for col in final.columns if col not in ["ticker", "api_run_date"]]
+            final[num_cols] = final[num_cols].round(4)
         upload_dataframe_to_gcs(final, gcs_path(f"{tx_dir}/{out_name}"))
 
     # Revenue transform
@@ -603,8 +607,7 @@ def run_daily_bulk_download(tickers: List[str]):
         df["prev_close"] = pd.NA
         df["Close_to_Close (%)"] = pd.NA
         df["% Prev Close to Open"] = pd.NA
-        
-    
+         
     
     # Intraday ratios
     df["High_Close(%)"] = ((df["high"] - df["close"]) / df["close"] * 100).round(2)
@@ -687,7 +690,10 @@ def run_daily_bulk_download(tickers: List[str]):
         combo = pd.concat([hist_df, today_fmt], ignore_index=True)
         combo = compute_52w_metrics(combo)
         today_enriched = combo[combo["Trade_Date"] == pd.to_datetime(date_str)].copy()
-        
+        today_enriched = today_enriched.drop_duplicates(
+            subset=["Symbol", "Trade_Date"], 
+            keep="last"  
+        ).reset_index(drop=True)
         out_blob = f"{DAILY_OUTPUT_BASE}/eod_us_{pd.to_datetime(date_str).strftime('%Y%m%d')}_cleaned.csv"
         upload_dataframe_to_gcs(today_enriched, out_blob)
         log_progress(f"✅ Uploaded cleaned CSV: gs://{BUCKET_NAME}/{out_blob}  ({len(today_enriched)} rows)")
